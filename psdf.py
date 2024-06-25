@@ -191,9 +191,15 @@ PSDF_TIMC = 1.0 # Seconds
 
 PSDF_TAU = TEST_INT / (TEST_INT + PSDF_TIMC);
 
-vx[0]+=2.0*(sin(refw*(i-refp))*sig[i]-vx[0])*t;
-		for(j=1;j<fn;j++) vx[j]+=(vx[j-1]-vx[j])*t;
+X0 += 2.0 * (signal - X0) * PSDF_TAU
+X1 += (X0 - X1) * PSDF_TAU
+X2 += (X1 - X2) * PSDF_TAU
 
+vx[0]+=2.0*(sin(refw*(i-refp))*sig[i]-vx[0])*t;
+for(j=1;j<fn;j++) vx[j]+=(vx[j-1]-vx[j])*t;
+
+vy[0]+=2.0*(cos(refw*(i-refp))*sig[i]-vy[0])*t;
+for(j=1;j<fn;j++) vy[j]+=(vy[j-1]-vy[j])*t;
 
 
 ####################################################################################
