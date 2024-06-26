@@ -43,6 +43,22 @@ def engineering(data):
         +4: (1E-12, "T"),
     }[int(floor(log10(max(data)-min(data))/3))]
 
+def E(value, prec = 3):
+    value = abs(value)
+    C, S = (1E+00, "") if float(value) == 0.0 else {
+         0: (1E+00,  ""),
+        -1: (1E+03, "m"),
+        -2: (1E+06, "µ"),
+        -3: (1E+09, "n"),
+        -4: (1E+12, "p"),
+        +1: (1E-03, "K"),
+        +2: (1E-06, "M"),
+        +3: (1E-09, "G"),
+        +4: (1E-12, "T"),
+    }[int(floor(log10(value)/3))]
+    fs = f".{prec}f" # format string
+    return f"{value*C:{fs}}{S}"
+
 def selectfigure(name):
     if not fignum_exists(name):
         # create figure
@@ -163,64 +179,90 @@ class Document():
 D = Document()
 D.opendocument("./display.pdf")
 
-####################################################################################
+#####################################################################
 
-from numpy import linspace
-from numpy import sin
+from numpy import linspace, empty
+from numpy import sin, cos, sqrt
 from numpy import pi
 
 # define test signal
-TEST_FREQ = 96.0 	# FREQUENCY 	Hertz
-TEST_PHAS = 10.0 	# PHASE 		Degrees
-TEST_AMP  = 0.2  	# AMPLITUDE 	Volts 
-TEST_INT  = 20E-6 	# INTERVALS		Seconds
-TEST_LEN  = 100E-3	# LENGTH		Seconds
-TEST_PTS  = int(TEST_LEN / TEST_INT) + 1
+TEST_FREQ = 96.0        # FREQUENCY             Hertz
+TEST_PHAS = 0.0         # PHASE                 Degrees
+TEST_AMPL = 1.0         # AMPLITUDE             Volts 
+TEST_SAMP = 100E-6      # SAMPLING INTERVAL     Seconds
+TEST_LEN  = 350E-3      # SIGNAL LENGTH         Seconds
 
-# compute test signal
+TEST_PTS  = int(TEST_LEN / TEST_SAMP) + 1
+
+print(f"Frequency = {E(TEST_FREQ)}Hz")
+print(f"Phase = {E(TEST_PHAS)}°")
+print(f"Amplitude = {E(TEST_AMPL)}V")
+print(f"Sampling intervals = {E(TEST_SAMP)}S")
+print(f"Number of points{E(TEST_PTS)}")
+
+# time vector
 T = linspace(0.0, TEST_LEN, TEST_PTS)
-X = TEST_AMP*sin(2.0*pi*(TEST_FREQ*T - TEST_PHAS/360.0))
+# phase vector
+P = 2.0*pi*TEST_FREQ*T
+# test signal (includes a phase shift)
+V = TEST_AMPL*sin(P-pi/180.0*TEST_PHAS)
+# reserve memory for lockin output arrays 
+X, Y = empty((TEST_PTS, 2)), empty((TEST_PTS, 2))
 
-# select subset
-wp, ww = 0, 700
-# T, X = T[wp:wp+ww, 0] - T[wp, 0], X[wp:wp+ww, 1]
-T, X = T[wp:wp+ww] - T[wp], X[wp:wp+ww]
+########################################
+# PHASE SENSITIVE DETECTION PARAMETERS #
+########################################
 
-PSDF_TIMC = 1.0 # Seconds
+# time constant (same as the lockin time time constant)
+PSDF_TIMC = 0.050 # Seconds
+# usually TEST_SAMP << PSDF_TIMC and
+# PSDF_ALPH is approximately TEST_SAMP / PSDF_TIMC
+PSDF_ALPH = TEST_SAMP / (TEST_SAMP + PSDF_TIMC);
+# the slope depends on the number of low-pass filters
+PSDF_NUM = 2
+# compute reference vectors
+SIN, COS = sin(P), cos(P)
+# initial low pass filter outputs
+VX, VY = [float(0)]*PSDF_NUM, [float(0)]*PSDF_NUM
+# sweep through buffered signal: reference and signal vectors
+for i, (s, c, v) in enumerate(zip(SIN, COS, V)):
+    # compute first phase detection output
+    # with first stage low pass filter
+    VX[0] += (s*v-VX[0])*PSDF_ALPH
+    VY[0] += (c*v-VY[0])*PSDF_ALPH
+    # compute higher stage low pass values
+    # for i in range(1, PSDF_NUM):
+    #     VX[i+1] = (VX[i]-VX[i+1])*PSDF_ALPH
+    #     VY[i+1] = (VX[i]-VX[i+1])*PSDF_ALPH
+    VX[1] += (VX[0]-VX[1])*PSDF_ALPH
+    VY[1] += (VY[0]-VY[1])*PSDF_ALPH
+    # record last filter value and scale to get rms value
+    # X[i], Y[i] = VX[-1]/sqrt(2), VY[-1]/sqrt(2)
+    X[i, 0], Y[i, 0] = 2*VX[0], 2*VY[0]
+    X[i, 1], Y[i, 1] = 2*VX[1], 2*VY[1]
 
-
-PSDF_TAU = TEST_INT / (TEST_INT + PSDF_TIMC);
-
-X0 += 2.0 * (signal - X0) * PSDF_TAU
-X1 += (X0 - X1) * PSDF_TAU
-X2 += (X1 - X2) * PSDF_TAU
-
-vx[0]+=2.0*(sin(refw*(i-refp))*sig[i]-vx[0])*t;
-for(j=1;j<fn;j++) vx[j]+=(vx[j-1]-vx[j])*t;
-
-vy[0]+=2.0*(cos(refw*(i-refp))*sig[i]-vy[0])*t;
-for(j=1;j<fn;j++) vy[j]+=(vy[j-1]-vy[j])*t;
-
-
-####################################################################################
+#####################################################################
 
 scaler_t, suffix_t = engineering(T)
-scaler_x, suffix_x = engineering(X)
+scaler_v, suffix_v = engineering(V)
+
+T, V = T*scaler_t, V*scaler_v
+X, Y = X*scaler_v, Y*scaler_v
 
 p, w, h = 1, 1, 1
 
 fg, ax = selectfigure("FRAME0")
 
-headerText(f"""
-    FRAME 0: determination of the pre-fitting values
-    {ww} points from {wp} to {wp+ww-1}
-    time offset      = {T[wp]:08.4f}S
-    time frame width = {T[-1]:08.4f}{suffix_t}S
-    first center     = {p:.3f}{suffix_t}S
-    period           = {w:.4f}{suffix_t}S
-    frequency        = {scaler_t/w:.4f}Hz
-    amplitude        = {h:.1f}{suffix_x}V
-    """, fg)
+# headerText(f"""
+#     FRAME 0: determination of the pre-fitting values
+#     {ww} points from {wp} to {wp+ww-1}
+#     time offset      = {T[wp]:08.4f}S
+#     time frame width = {T[-1]:08.4f}{suffix_t}S
+#     first center     = {p:.3f}{suffix_t}S
+#     period           = {w:.4f}{suffix_t}S
+#     frequency        = {scaler_t/w:.4f}Hz
+#     amplitude        = {h:.1f}{suffix_x}V
+#     """, fg)
 
 # fix T labels and ticks
 ts, te = min(T), max(T)
@@ -231,12 +273,12 @@ ax.set_xticks(MT)
 ax.set_xticks(ST, minor = True)
 
 # fix X labels and ticks
-xs, xe = min(X), max(X)
-dx =  0.1*(xe-xs)
-ax.set_ylim(xs-dx, xe+dx)
-MX, SX = _getTickPositions(xs-dx, xe+dx, 7)
-ax.set_yticks(MX)
-ax.set_yticks(SX, minor = True)
+vs, ve = min(V), max(V)
+dv =  0.1*(ve-vs)
+ax.set_ylim(vs-dv, ve+dv)
+MV, SV = _getTickPositions(vs-dv, ve+dv, 7)
+ax.set_yticks(MV)
+ax.set_yticks(SV, minor = True)
 
 # fix grid style
 ax.tick_params(axis = "both", which = "both", direction = "in")
@@ -245,14 +287,21 @@ ax.grid("on", which = "major", linewidth = 1.0)
 
 # set axes labels
 ax.set_xlabel(f"Time / {suffix_t}S")
-ax.set_ylabel(f"Signal / {suffix_x}V")
+ax.set_ylabel(f"Signal / {suffix_v}V")
 
 # plot data
-ax.plot(T, X, '.', color = data_color)
+ax.plot(T, V, '-', color = data_color)
+ax.plot(T, X[:, 0], '-', color = "r")
+ax.plot(T, Y[:, 0], '-', color = "b")
+ax.plot(T, X[:, 1], '-', color = "r")
+ax.plot(T, Y[:, 1], '-', color = "b")
 # ax.plot(T, Y, '-.', color = "r")
 # ax.plot(T, ff(T, *P), "-", color = fit_color)
-# ax.plot(T[J], Y[J], 'ko', markerfacecolor = 'white', markersize = 8)
-ax.legend(["data", "filtered", "fitted", "down zero crossings"])
+# ax.plot(T[J], Y[J],
+#     'ko', 
+#     markerfacecolor = 'white',
+#     markersize = 8)
+ax.legend(["data"])
 
 D.exportfigure("FRAME0")
 
