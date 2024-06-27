@@ -181,7 +181,7 @@ D.opendocument("./display.pdf")
 
 #####################################################################
 
-from numpy import linspace, empty
+from numpy import linspace, empty, zeros
 from numpy import sin, cos, sqrt
 from numpy import pi
 
@@ -206,8 +206,6 @@ T = linspace(0.0, TEST_LEN, TEST_PTS)
 P = 2.0*pi*TEST_FREQ*T
 # test signal (includes a phase shift)
 V = TEST_AMPL*sin(P-pi/180.0*TEST_PHAS)
-# reserve memory for lockin output arrays 
-X, Y = empty((TEST_PTS, 2)), empty((TEST_PTS, 2))
 
 ########################################
 # PHASE SENSITIVE DETECTION PARAMETERS #
@@ -215,31 +213,33 @@ X, Y = empty((TEST_PTS, 2)), empty((TEST_PTS, 2))
 
 # time constant (same as the lockin time time constant)
 PSDF_TIMC = 0.050 # Seconds
-# usually TEST_SAMP << PSDF_TIMC and
+
+# normally we should have TEST_SAMP << PSDF_TIMC and
 # PSDF_ALPH is approximately TEST_SAMP / PSDF_TIMC
 PSDF_ALPH = TEST_SAMP / (TEST_SAMP + PSDF_TIMC);
+
 # the slope depends on the number of low-pass filters
-PSDF_NUM = 2
+PSDF_NUM = 3
+
 # compute reference vectors
 SIN, COS = sin(P), cos(P)
-# initial low pass filter outputs
-VX, VY = [float(0)]*PSDF_NUM, [float(0)]*PSDF_NUM
+
+# reserve memory for the low pass filter outputs
+VX = zeros((TEST_PTS, PSDF_NUM))
+VY = zeros((TEST_PTS, PSDF_NUM))
+
 # sweep through buffered signal: reference and signal vectors
 for i, (s, c, v) in enumerate(zip(SIN, COS, V)):
-    # compute first phase detection output
-    # with first stage low pass filter
-    VX[0] += (s*v-VX[0])*PSDF_ALPH
-    VY[0] += (c*v-VY[0])*PSDF_ALPH
-    # compute higher stage low pass values
-    # for i in range(1, PSDF_NUM):
-    #     VX[i+1] = (VX[i]-VX[i+1])*PSDF_ALPH
-    #     VY[i+1] = (VX[i]-VX[i+1])*PSDF_ALPH
-    VX[1] += (VX[0]-VX[1])*PSDF_ALPH
-    VY[1] += (VY[0]-VY[1])*PSDF_ALPH
-    # record last filter value and scale to get rms value
-    # X[i], Y[i] = VX[-1]/sqrt(2), VY[-1]/sqrt(2)
-    X[i, 0], Y[i, 0] = 2*VX[0], 2*VY[0]
-    X[i, 1], Y[i, 1] = 2*VX[1], 2*VY[1]
+    # compute and record first stage detection output
+    VX[i, 0] = VX[i-1, 0] + (s*v - VX[i-1, 0])*PSDF_ALPH
+    VY[i, 0] = VY[i-1, 0] + (c*v - VY[i-1, 0])*PSDF_ALPH
+    # compute and record upper low pass filter ouputs
+    for j in range(1, PSDF_NUM):
+        VX[i, j] = VX[i-1, j] + (VX[i, j-1] - VX[i-1, j])*PSDF_ALPH
+        VY[i, j] = VY[i-1, j] + (VY[i, j-1] - VY[i-1, j])*PSDF_ALPH
+
+# copy last filter data sets
+X, Y = 2*VX[:, -1], 2*VY[:, -1]
 
 #####################################################################
 
@@ -291,10 +291,8 @@ ax.set_ylabel(f"Signal / {suffix_v}V")
 
 # plot data
 ax.plot(T, V, '-', color = data_color)
-ax.plot(T, X[:, 0], '-', color = "r")
-ax.plot(T, Y[:, 0], '-', color = "b")
-ax.plot(T, X[:, 1], '-', color = "r")
-ax.plot(T, Y[:, 1], '-', color = "b")
+ax.plot(T, X, '-', color = "r")
+ax.plot(T, Y, '-', color = "b")
 # ax.plot(T, Y, '-.', color = "r")
 # ax.plot(T, ff(T, *P), "-", color = fit_color)
 # ax.plot(T[J], Y[J],
