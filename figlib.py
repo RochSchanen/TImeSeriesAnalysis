@@ -130,8 +130,10 @@ def getTickPositions(start, stop, ticks):
 #                                                    ENGINEER UNITS #
 #####################################################################
 
-def engineerFormat(value):
-    return {
+# compute 3-decades 
+def vEng(value):
+    value = abs(value)
+    C, S = (1E+00, "") if float(value) == 0.0 else {
          0: (1E+00,  ""),
         -1: (1E+03, "m"),
         -2: (1E+06, "µ"),
@@ -142,6 +144,11 @@ def engineerFormat(value):
         +3: (1E-09, "G"),
         +4: (1E-12, "T"),
     }[int(floor(log10(value)/3))]
+    return C, S
+
+def fEng(value, format = ".3f"):
+    C, S = vEng(value)
+    return f"{value*C:{format}}{S}"
 
 #####################################################################
 #                                                          DOCUMENT #
@@ -175,15 +182,17 @@ class Document():
 def stdFig(name, X, xu, xl, Y, yu, yl):
 
     from matplotlib.colors import CSS4_COLORS
+    # find color keys at
+    # matplotlib.org/3.1.0/gallery/color/named_colors.html
     data_color = CSS4_COLORS["grey"]
 
     fg, ax = selectfigure(name)
 
-    scaler_x, suffix_x = engineerFormat(max(X)-min(X))
-    scaler_y, suffix_y = engineerFormat(max(Y)-min(Y))
+    fg.scx, fg.suffix_x = vEng(max(X)-min(X))
+    fg.scy, fg.suffix_y = vEng(max(Y)-min(Y))
 
     # re-scale data
-    X, Y = X*scaler_x, Y*scaler_y
+    X, Y = X*fg.scx, Y*fg.scy
 
     # fix X labels and ticks
     s, e = min(X), max(X)
@@ -207,10 +216,10 @@ def stdFig(name, X, xu, xl, Y, yu, yl):
     ax.grid("on", which = "major", linewidth = 1.0)
 
     # set axes labels
-    ax.set_xlabel(f"{xl} / {suffix_x}{xu}")
-    ax.set_ylabel(f"{yl} / {suffix_y}{yu}")
+    ax.set_xlabel(f"{xl} / {fg.suffix_x}{xu}")
+    ax.set_ylabel(f"{yl} / {fg.suffix_y}{yu}")
 
     # plot data
-    ax.plot(X, Y, '.', color = data_color)
+    ax.plot(X, Y, '-', color = data_color)
 
     return fg, ax
