@@ -139,11 +139,11 @@ D.exportfigure(f"FRAME{FRAME_NUMBER}")
 #####################################################################
 
 # use 30 cycles to fit the signal (tweak-able)
-FRAME_LENGTH = int(10 * w / TIME_INTERVAL)
+FRAME_LENGTH = int(250 * w / TIME_INTERVAL)
 
 # shift frame by half its length (tweak-able)
 # the shift MUST BE a integer multiple of cycles (see comment below)
-FRAME_SHIFT = 3
+FRAME_SHIFT = 50
 
 # approximate number of frames
 FRAME_NUMBERS = int((DATA_PTS - FRAME_LENGTH)/FRAME_SHIFT)
@@ -155,7 +155,7 @@ DATA_PERIOD = zeros(FRAME_NUMBERS)
 DATA_AMPLITUDE = zeros(FRAME_NUMBERS)
 
 # pages to display
-PAGES = [1]
+PAGES = [1, 10, 100]
 
 while True:
 
@@ -232,7 +232,7 @@ while True:
 
 # export results
 from numpy import savez
-savez("./fit_10_3.npz",
+savez("./results.npz",
     DATA_TIME = DATA_TIME[:FRAME_NUMBER],
     DATA_AMPLITUDE = DATA_AMPLITUDE[:FRAME_NUMBER],
     DATA_PERIOD = DATA_PERIOD[:FRAME_NUMBER],    

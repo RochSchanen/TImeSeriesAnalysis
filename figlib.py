@@ -212,7 +212,7 @@ def stdFig(name, X, xu, xl, Y, yu, yl):
 
     # fix grid style
     ax.tick_params(axis = "both", which = "both", direction = "in")
-    ax.grid("on", which = "minor", linewidth = 0.5)
+    ax.grid("on", which = "minor", linewidth = 0.5, linestyle = "--")
     ax.grid("on", which = "major", linewidth = 1.0)
 
     # set axes labels
