@@ -57,9 +57,9 @@ def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
     # reserve memory for the low pass filter outputs
     VX = zeros((len(T), PSD_NUM))
     VY = zeros((len(T), PSD_NUM))
-    # setup initial low pass filter levels
+    # setup initial low pass filter levels (defaults to zeros)
     if LPFS is not None: VX[0, :], VY[0, :] = LPFS
-    # sweep through buffered signal: reference and signal vectors
+    # sweep through references and the signal vector V
     for i, (s, c, v) in enumerate(zip(SIN, COS, V)):
         # use start up value on the first iteration
         k = 0 if i == 0 else i-1
@@ -70,12 +70,12 @@ def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
         for j in range(1, PSD_NUM):
             VX[i, j] = VX[k, j] + (VX[i, j-1]-VX[k, j])*PSD_ALPH
             VY[i, j] = VY[k, j] + (VY[i, j-1]-VY[k, j])*PSD_ALPH
-    # low pass filters current level
+    # record low pass filters final levels
     LPFS = VX[-1, :], VY[-1, :]
-    # last low pass filter data set
+    # keep last low pass filter data set
     VXN, VYN = sqrt(2)*VX[:,-1], sqrt(2)*VY[:,-1]
     # done: return the last low pass filters data sets
-    # plus returns the current low pass filter levels
+    # with the last low pass filter levels
     return VXN, VYN, LPFS
 
 #####################################################################
