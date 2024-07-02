@@ -202,7 +202,7 @@ D.exportfigure(f"FRAME{FRAME_NUMBER}")
 #####################################################################
 
 # THE PSD FILTER IS APPLIED ON DATA CHUNKS
-FRAME_LENGTH = int(20 * w / TIME_INTERVAL)
+FRAME_LENGTH = int(30 * w / TIME_INTERVAL)
 # NUMBER OF FRAMES TO PROCESS
 FRAME_NUMBERS = int(DATA_PTS/FRAME_LENGTH)
 # ESTIMATED REFERENCE FREQUENCY
@@ -210,7 +210,7 @@ REF_FREQ = 1 / w
 # PSD SLOPE (-6db x number of low pass filters)
 PSD_NUM = 2
 # PSD time constant in seconds
-PSD_TAU = 0.100
+PSD_TAU = 0.200
 
 # DISPLAY INFO
 print(f"""
@@ -249,7 +249,7 @@ for FRAME_NUMBER in range(FRAME_NUMBERS):
     # safe break
     if wp+ww > DATA_PTS : break
     # test
-    if FRAME_NUMBER > 100: break
+    # if FRAME_NUMBER > 100: break
 
 #####################################################################
 #                                                    EXPORT RESULTS #
