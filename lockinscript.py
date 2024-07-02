@@ -28,47 +28,48 @@ D.opendocument("./psd_results.pdf")
 #                                              IMPORT FULL DATA SET #
 #####################################################################
 
-# # SELECT FROM FILE LIST
-# fp = {
-#     "verylarge" : "./Recording 3.csv",
-#     "small"     : "./Recording 0.csv",
-#     "medium"    : "./Recording 1.csv",
-#     "large"     : "./Recording 2.csv",
-#     }["verylarge"]
+debug = False
 
-# # DISPLAY INFOS
-# displayFileSize(fp)
+if debug:
 
-# # LOAD DATA FROM EXCEL FORMAT
-# DATA = importCSV(fp)
+    # define test signal
+    TEST_FREQ = 96.0            # FREQUENCY             Hertz
+    TEST_PHAS = 30.0            # PHASE                 Degrees
+    TEST_AMPL = 0.1*sqrt(2)     # AMPLITUDE (0.1Vrms)   Volts 
+    SAMPLING  = 20E-6           # SAMPLING INTERVAL     Seconds
+    TEST_LEN  = 30.0            # SIGNAL LENGTH         Seconds
+    DATA_PTS  = int(TEST_LEN / SAMPLING) + 1
+    # export values (debug)
+    print(f"Frequency = {fEng(TEST_FREQ)}Hz")
+    print(f"Phase = {fEng(TEST_PHAS)}°")
+    print(f"Amplitude = {fEng(TEST_AMPL)}V")
+    print(f"Sampling intervals = {fEng(SAMPLING)}S")
+    print(f"Number of points{fEng(DATA_PTS)}")
+    # time vector
+    T = linspace(0.0, TEST_LEN, DATA_PTS)
+    # test signal (includes a phase shift)
+    V = TEST_AMPL*sin(2.0*pi*TEST_FREQ*T - pi/180.0*TEST_PHAS)
+    DATA = zeros((DATA_PTS, 2))
+    DATA[:, 0], DATA[:, 1] = T, V
 
-# # MEASURE VECTOR LENGTHS
-# DATA_PTS = DATA[:,0].size
+else:
 
-# define test signal
-TEST_FREQ = 96.0            # FREQUENCY             Hertz
-TEST_PHAS = 0.0             # PHASE                 Degrees
-TEST_AMPL = 0.1*sqrt(2)     # AMPLITUDE (0.1Vrms)   Volts 
-SAMPLING  = 20E-6           # SAMPLING INTERVAL     Seconds
-TEST_LEN  = 30.0            # SIGNAL LENGTH         Seconds
+    # SELECT FROM FILE LIST
+    fp = {
+        "verylarge" : "./Recording 3.csv",
+        "small"     : "./Recording 0.csv",
+        "medium"    : "./Recording 1.csv",
+        "large"     : "./Recording 2.csv",
+        }["verylarge"]
 
-DATA_PTS  = int(TEST_LEN / SAMPLING) + 1
+    # DISPLAY INFOS
+    displayFileSize(fp)
 
-# export values (debug)
-print(f"Frequency = {fEng(TEST_FREQ)}Hz")
-print(f"Phase = {fEng(TEST_PHAS)}°")
-print(f"Amplitude = {fEng(TEST_AMPL)}V")
-print(f"Sampling intervals = {fEng(SAMPLING)}S")
-print(f"Number of points{fEng(DATA_PTS)}")
+    # LOAD DATA FROM EXCEL FORMAT
+    DATA = importCSV(fp)
 
-# time vector
-T = linspace(0.0, TEST_LEN, DATA_PTS)
-
-# test signal (includes a phase shift)
-V = TEST_AMPL*sin(2.0*pi*TEST_FREQ*T - pi/180.0*TEST_PHAS)
-
-DATA = zeros((DATA_PTS, 2))
-DATA[:, 0], DATA[:, 1] = T, V
+    # MEASURE VECTOR LENGTHS
+    DATA_PTS = DATA[:,0].size
 
 #####################################################################
 #                                                GENERAL PARAMETERS #
@@ -201,7 +202,7 @@ D.exportfigure(f"FRAME{FRAME_NUMBER}")
 #####################################################################
 
 # THE PSD FILTER IS APPLIED ON DATA CHUNKS
-FRAME_LENGTH = int(10 * w / TIME_INTERVAL)
+FRAME_LENGTH = int(20 * w / TIME_INTERVAL)
 # NUMBER OF FRAMES TO PROCESS
 FRAME_NUMBERS = int(DATA_PTS/FRAME_LENGTH)
 # ESTIMATED REFERENCE FREQUENCY
@@ -209,7 +210,7 @@ REF_FREQ = 1 / w
 # PSD SLOPE (-6db x number of low pass filters)
 PSD_NUM = 2
 # PSD time constant in seconds
-PSD_TAU = 1.0
+PSD_TAU = 0.100
 
 # DISPLAY INFO
 print(f"""
@@ -225,8 +226,8 @@ DATA_X    = zeros(FRAME_NUMBERS)
 DATA_Y    = zeros(FRAME_NUMBERS)
 
 # INITIAL PSD LEVELS
-# LPFS = array([(h, h)]*PSD_NUM)
-LPFS = array([(0, 0)]*PSD_NUM)
+# (the intial filter values must be computable from p, w, h)
+LPFS = None
 
 # SETUP FIRST FRAME
 wp, ww = 0, FRAME_LENGTH
@@ -239,14 +240,16 @@ for FRAME_NUMBER in range(FRAME_NUMBERS):
     X, Y, LPFS = PSD_RMS(REF_FREQ, PSD_TAU, PSD_NUM, T, V, LPFS)
     # record time stamp
     DATA_TIME[FRAME_NUMBER] = T[-1]
-    # record psd levels 
-    DATA_X[FRAME_NUMBER], DATA_Y[FRAME_NUMBER] = LPFS[-1]
+    # split channels 
+    LPFX, LPFY = LPFS
+    # record last stage
+    DATA_X[FRAME_NUMBER], DATA_Y[FRAME_NUMBER] = LPFX[-1], LPFY[-1]
     # UPDATE FRAME PARAMTERS
     wp += FRAME_LENGTH
     # safe break
     if wp+ww > DATA_PTS : break
     # test
-    # if FRAME_NUMBER > 200: break
+    if FRAME_NUMBER > 100: break
 
 #####################################################################
 #                                                    EXPORT RESULTS #
@@ -264,10 +267,9 @@ fg, ax = stdfig(
     "PSD", "V", X, Y, A
     )
 
-stdplot("PSD_RESULTS", T, X, ".-b")
-stdplot("PSD_RESULTS", T, Y, ".-r")
-stdplot("PSD_RESULTS", T, A, ".-k")
-
+stdplot("PSD_RESULTS", T, X, "-b")
+stdplot("PSD_RESULTS", T, Y, "-r")
+stdplot("PSD_RESULTS", T, A, "-k")
 
 D.exportfigure(f"PSD_RESULTS")
 
