@@ -14,13 +14,17 @@ def PSD_RAW(PSD_FRQ, PSD_TMC, PSD_NUM, T, V):
     # 4 -> -24dB (wait 10 PSD_TMC)
     # - T is the time vector in units of Seconds
     # - V is the signal vector in units of Volts
+    
+    # the time sampling intervals must be fixed
+    SAMPLING = T[1]-T[0]
+    # imports
     from numpy import pi, sin, cos, zeros
     # compute phase vector
     P = 2.0*pi*PSD_FRQ*T
     # compute reference vectors
     SIN, COS = sin(P), cos(P)
     # compute digital low pass filter alpha value
-    PSD_ALPH = TEST_SAMP / (TEST_SAMP + PSD_TMC);
+    PSD_ALPH = SAMPLING / (SAMPLING + PSD_TMC);
     # reserve memory for the low pass filter outputs
     VX = zeros((len(T), PSD_NUM))
     VY = zeros((len(T), PSD_NUM))
@@ -47,13 +51,17 @@ def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
     # - T is the time vector in units of Seconds
     # - X is the signal vector in units of Volts
     # - use LPFS to initialise the low pass filter levels
-    from numpy import pi, sin, cos, zeros
+
+    # the time sampling intervals must be fixed
+    SAMPLING = T[1]-T[0]
+    # imports
+    from numpy import pi, sin, cos, zeros, sqrt
     # compute phase vector
     P = 2.0*pi*PSD_FRQ*T
     # compute reference vectors
     SIN, COS = sin(P), cos(P)
     # compute digital low pass filter alpha value
-    PSD_ALPH = TEST_SAMP / (TEST_SAMP + PSD_TMC)
+    PSD_ALPH = SAMPLING / (SAMPLING + PSD_TMC)
     # reserve memory for the low pass filter outputs
     VX = zeros((len(T), PSD_NUM))
     VY = zeros((len(T), PSD_NUM))
@@ -108,14 +116,14 @@ if __name__ == "__main__":
     TEST_FREQ = 96.0            # FREQUENCY             Hertz
     TEST_PHAS = 45.0            # PHASE                 Degrees
     TEST_AMPL = 0.1*sqrt(2)     # AMPLITUDE (0.1Vrms)   Volts 
-    TEST_SAMP = 100E-6          # SAMPLING INTERVAL     Seconds
+    SAMPLING = 100E-6          # SAMPLING INTERVAL     Seconds
     TEST_LEN  = 350E-3          # SIGNAL LENGTH         Seconds
-    TEST_PTS  = int(TEST_LEN / TEST_SAMP) + 1
+    TEST_PTS  = int(TEST_LEN / SAMPLING) + 1
     # export values (debug)
     print(f"Frequency = {fEng(TEST_FREQ)}Hz")
     print(f"Phase = {fEng(TEST_PHAS)}°")
     print(f"Amplitude = {fEng(TEST_AMPL)}V")
-    print(f"Sampling intervals = {fEng(TEST_SAMP)}S")
+    print(f"Sampling intervals = {fEng(SAMPLING)}S")
     print(f"Number of points{fEng(TEST_PTS)}")
     # time vector
     T = linspace(0.0, TEST_LEN, TEST_PTS)

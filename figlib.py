@@ -223,3 +223,77 @@ def stdFig(name, X, xu, xl, Y, yu, yl):
     ax.plot(X, Y, '-', color = data_color)
 
     return fg, ax
+
+#####################################################################
+#                                                 STANDARD FIGURE 2 #
+#####################################################################
+
+def getScale(*args):
+    vmins, vmaxs = [], []
+    for V in args:
+        vmins.append(min(V))
+        vmaxs.append(max(V))
+    vspan = max(vmaxs) - min(vmins)
+    va, vf = vEng(vspan)
+    vs, ve = min(vmins)*va, max(vmaxs)*va
+    vd = 0.1*(ve - vs)
+    vs, ve = vs-vd, ve+vd
+    M, S = getTickPositions(vs, ve, 7)
+    return va, vf, vs, ve, M, S
+
+def setXTicks(ax, *args):
+    scale, suffix, s, e, M, S = getScale(*args)
+    ax.set_xlim(s, e)
+    ax.set_xticks(M)
+    ax.set_xticks(S, minor = True)
+    return scale, suffix
+
+def setYTicks(ax, *args):
+    scale, suffix, s, e, M, S = getScale(*args)
+    ax.set_ylim(s, e)
+    ax.set_yticks(M)
+    ax.set_yticks(S, minor = True)
+    return scale, suffix
+
+def stdfig(name, xl, xu, X, yl, yu, *Yargs, **kwargs):
+    fg, ax = selectfigure(name)
+    # setup X scale
+    fg.scx, fg.suffix_x = setXTicks(ax, X)
+    ax.set_xlabel(f"{xl} / {fg.suffix_x}{xu}")
+    # setup Y scale
+    fg.scy, fg.suffix_y = setYTicks(ax, *Yargs)
+    ax.set_ylabel(f"{yl} / {fg.suffix_y}{yu}")
+    # setup grid
+    ax.tick_params(axis = "both", which = "both", direction = "in")
+    ax.grid("on", which = "minor", linewidth = 0.5, linestyle = "--")
+    ax.grid("on", which = "major", linewidth = 1.0)
+    # matplotlib.org/3.1.0/gallery/color/named_colors.html
+    from matplotlib.colors import CSS4_COLORS
+    fg.colors = CSS4_COLORS
+    return fg, ax
+
+def stdplot(name, X, Y, *args, **kwargs):
+    fg, ax = selectfigure(name)
+    ax.plot(X*fg.scx, Y*fg.scy, *args, **kwargs)
+    return
+
+if __name__ == "__main__":
+
+    D = Document()
+
+    D.opendocument("./test.pdf")
+
+    X  = array([0.0, 1, 2])
+    Y1 = array([10.0, 20, 5])
+    Y2 = array([-10.0, +20, -5])  
+
+    fg, ax = stdfig("name",
+        "label x", "unit x", X,
+        "label y", "unit y", Y1, Y2)
+
+    stdplot("name", X, Y1, ".-b")
+    stdplot("name", X, Y2, "--r")
+
+    D.exportfigure("name")
+
+    D.closedocument()
