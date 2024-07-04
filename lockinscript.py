@@ -201,16 +201,31 @@ D.exportfigure(f"FRAME{FRAME_NUMBER}")
 #                                                   LOOP PARAMETERS #
 #####################################################################
 
-# THE PSD FILTER IS APPLIED ON DATA CHUNKS
-FRAME_LENGTH = int(30 * w / TIME_INTERVAL)
+"""
+The PSD filter is applied on data chunks called FRAMES.
+The X channel is in phase with the signal when crossing
+the zero level while rising (as the sinusoidal function)
+The fit above gives us the phase value p in seconds. The
+signal amplitude is half the peak to peak value, and the
+RMS value is 
+"""
+
+SIGNAL_PHASE     = p
+SIGNAL_AMPLITUDE = h
+SIGNAL_PERIOD    = w
+
+# number of cycles per frame
+FRAME_CYCLES = 100
+# frame length [points]
+FRAME_LENGTH = int(FRAME_CYCLES * SIGNAL_PERIOD / TIME_INTERVAL)
 # NUMBER OF FRAMES TO PROCESS
-FRAME_NUMBERS = int(DATA_PTS/FRAME_LENGTH)
+FRAME_NUMBERS = int(DATA_PTS / FRAME_LENGTH)
 # ESTIMATED REFERENCE FREQUENCY
-REF_FREQ = 1 / w
-# PSD SLOPE (-6db x number of low pass filters)
+REF_FREQ = 1 / SIGNAL_PERIOD
+# PSD SLOPE (-6dB x number of low pass filters)
 PSD_NUM = 2
 # PSD time constant in seconds
-PSD_TAU = 0.200
+PSD_TAU = 1.0
 
 # DISPLAY INFO
 print(f"""
@@ -225,9 +240,8 @@ DATA_TIME = zeros(FRAME_NUMBERS)
 DATA_X    = zeros(FRAME_NUMBERS)
 DATA_Y    = zeros(FRAME_NUMBERS)
 
-# INITIAL PSD LEVELS
-# (the intial filter values must be computable from p, w, h)
-LPFS = None
+# INITIAL PSD LEVELS (from above fitted values p, w, h)
+LPFS = ([h/2.0]*PSD_NUM, [0.0]*PSD_NUM)
 
 # SETUP FIRST FRAME
 wp, ww = 0, FRAME_LENGTH
@@ -236,20 +250,20 @@ wp, ww = 0, FRAME_LENGTH
 for FRAME_NUMBER in range(FRAME_NUMBERS):
     # SELECT DATA
     T, V = DATA[wp:wp+ww, 0], DATA[wp:wp+ww, 1]
-    # psd filter
-    X, Y, LPFS = PSD_RMS(REF_FREQ, PSD_TAU, PSD_NUM, T, V, LPFS)
+    # compute PSD outputs (here X and Y are disregarded)
+    X, Y, LPFS = PSD_RMS(REF_FREQ, PSD_TAU, PSD_NUM, T-p, V, LPFS)
     # record time stamp
     DATA_TIME[FRAME_NUMBER] = T[-1]
     # split channels 
     LPFX, LPFY = LPFS
-    # record last stage
+    # record only last values
     DATA_X[FRAME_NUMBER], DATA_Y[FRAME_NUMBER] = LPFX[-1], LPFY[-1]
     # UPDATE FRAME PARAMTERS
     wp += FRAME_LENGTH
     # safe break
     if wp+ww > DATA_PTS : break
     # test
-    # if FRAME_NUMBER > 100: break
+    # if FRAME_NUMBER > 15: break
 
 #####################################################################
 #                                                    EXPORT RESULTS #
@@ -267,9 +281,9 @@ fg, ax = stdfig(
     "PSD", "V", X, Y, A
     )
 
-stdplot("PSD_RESULTS", T, X, "-b")
-stdplot("PSD_RESULTS", T, Y, "-r")
-stdplot("PSD_RESULTS", T, A, "-k")
+stdplot("PSD_RESULTS", T, X, "-b", linewidth = 0.5)
+stdplot("PSD_RESULTS", T, Y, "-r", linewidth = 0.5)
+stdplot("PSD_RESULTS", T, A, "--k")
 
 D.exportfigure(f"PSD_RESULTS")
 

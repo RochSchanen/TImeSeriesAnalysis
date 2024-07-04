@@ -216,8 +216,10 @@ def stdFig(name, X, xu, xl, Y, yu, yl):
     ax.grid("on", which = "major", linewidth = 1.0)
 
     # set axes labels
-    ax.set_xlabel(f"{xl} / {fg.suffix_x}{xu}")
-    ax.set_ylabel(f"{yl} / {fg.suffix_y}{yu}")
+    XU = f" / {fg.suffix_x}{xu}" if xu else ""
+    ax.set_xlabel(f"{xl}{XU}")
+    YU = f" / {fg.suffix_y}{yu}" if yu else ""
+    ax.set_ylabel(f"{yl}{YU}")
 
     # plot data
     ax.plot(X, Y, '-', color = data_color)
@@ -259,10 +261,12 @@ def stdfig(name, xl, xu, X, yl, yu, *Yargs, **kwargs):
     fg, ax = selectfigure(name)
     # setup X scale
     fg.scx, fg.suffix_x = setXTicks(ax, X)
-    ax.set_xlabel(f"{xl} / {fg.suffix_x}{xu}")
+    XU = f" / {fg.suffix_x}{xu}" if xu else ""
+    ax.set_xlabel(f"{xl}{XU}")
     # setup Y scale
     fg.scy, fg.suffix_y = setYTicks(ax, *Yargs)
-    ax.set_ylabel(f"{yl} / {fg.suffix_y}{yu}")
+    YU = f" / {fg.suffix_y}{yu}" if yu else ""
+    ax.set_ylabel(f"{yl}{YU}")
     # setup grid
     ax.tick_params(axis = "both", which = "both", direction = "in")
     ax.grid("on", which = "minor", linewidth = 0.5, linestyle = "--")

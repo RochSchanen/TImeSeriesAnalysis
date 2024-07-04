@@ -17,7 +17,7 @@ from numpy import array, log, exp, pi
 #####################################################################
 
 D = Document()
-D.opendocument("./results.pdf")
+D.opendocument("./fitscript.pdf")
 # import results
 from numpy import load
 DATA = load({
@@ -42,6 +42,7 @@ fg, ax = stdFig(
     X, "S", "Time",
     Y, "n.u.", r"$\log(A/A_0$)"
     )
+
 ax.set_ylabel(r"$\log\left(\frac{A(t)}{A(0)}\right)$")
 
 # in-phase fitting function
@@ -123,6 +124,7 @@ fg, ax = stdFig(
 from scipy.signal import savgol_filter
 YS = savgol_filter(Y, 100, 2)
 ax.plot(X*fg.scx, YS*fg.scy, "-.r")
+
 # YS2 = savgol_filter(Y, 20, 2)
 # ax.plot(X*fg.scx, YS2*fg.scy, "--k")
     

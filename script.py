@@ -155,7 +155,7 @@ DATA_PERIOD = zeros(FRAME_NUMBERS)
 DATA_AMPLITUDE = zeros(FRAME_NUMBERS)
 
 # pages to display
-PAGES = [1]
+PAGES = [1, 10, 100, 1000, 10000, 100000, 1000000]
 
 while True:
 
