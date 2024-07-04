@@ -1,6 +1,3 @@
 /__pycache__
 
-Recording 0.csv
-Recording 1.csv
-Recording 2.csv
-Recording 3.csv
+*.csv
