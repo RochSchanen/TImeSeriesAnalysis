@@ -1,3 +1,9 @@
+# DIRECTORIES
 /__pycache__
+.obsolete
+.data
 
+# FILE TYPES
 *.csv
+
+# FILES
