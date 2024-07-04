@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# file: script.py
+# file: lockinscript.py
 # author: Roch Schanen
 # date: 2024 06 21
 # content:
@@ -22,7 +22,7 @@ from numpy import zeros, array, square, sqrt, linspace, sin, pi
 
 D = Document()
 
-D.opendocument("./psd_results.pdf")
+D.opendocument("./lockinscript.pdf")
 
 #####################################################################
 #                                              IMPORT FULL DATA SET #
@@ -56,10 +56,10 @@ else:
 
     # SELECT FROM FILE LIST
     fp = {
-        "verylarge" : "./Recording 3.csv",
-        "small"     : "./Recording 0.csv",
-        "medium"    : "./Recording 1.csv",
-        "large"     : "./Recording 2.csv",
+        "verylarge" : "./.data/Recording 3.csv",
+        "small"     : "./.data/Recording 0.csv",
+        "medium"    : "./.data/Recording 1.csv",
+        "large"     : "./.data/Recording 2.csv",
         }["verylarge"]
 
     # DISPLAY INFOS
@@ -215,7 +215,7 @@ SIGNAL_AMPLITUDE = h
 SIGNAL_PERIOD    = w
 
 # number of cycles per frame
-FRAME_CYCLES = 100
+FRAME_CYCLES = 250
 # frame length [points]
 FRAME_LENGTH = int(FRAME_CYCLES * SIGNAL_PERIOD / TIME_INTERVAL)
 # NUMBER OF FRAMES TO PROCESS
@@ -225,7 +225,9 @@ REF_FREQ = 1 / SIGNAL_PERIOD
 # PSD SLOPE (-6dB x number of low pass filters)
 PSD_NUM = 2
 # PSD time constant in seconds
-PSD_TAU = 1.0
+PSD_TAU = FRAME_CYCLES*SIGNAL_PERIOD / {1:3,2:5,3:7,4:10}[PSD_NUM]
+
+OUTPUT_FILENAME = "PSD_OUT_250"
 
 # DISPLAY INFO
 print(f"""
@@ -295,7 +297,7 @@ D.closedocument()
 
 # export results
 from numpy import savez
-savez("./psd_results.npz",
+savez(f"./.outputs/{OUTPUT_FILENAME}.npz",
     DATA_TIME = DATA_TIME[:FRAME_NUMBER],
     DATA_X = DATA_X[:FRAME_NUMBER],
     DATA_Y = DATA_Y[:FRAME_NUMBER],

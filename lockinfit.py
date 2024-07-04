@@ -24,7 +24,7 @@ from figlib import Document, stdfig, stdplot, headerText, fEng
 #####################################################################
 
 D = Document()
-D.opendocument("./psdfit_results.pdf")
+D.opendocument("./lockinfit.pdf")
 
 #####################################################################
 #                                              IMPORT FULL DATA SET #
@@ -32,7 +32,7 @@ D.opendocument("./psdfit_results.pdf")
 
 from numpy import load
 
-data = load("./psd_results.npz")
+data = load("./.outputs/PSD_OUT_250.npz")
 T = data["DATA_TIME"]
 X = data["DATA_X"]
 Y = data["DATA_Y"]
@@ -73,8 +73,8 @@ i = searchsorted(T, 160.0)
 
 from scipy.stats import linregress
 r = linregress(T[i:], logA[i:])
-A, B = r.slope, r.intercept
-fitA = (T*A+B)
+a, b = r.slope, r.intercept
+fitA = (T*a+b)
 
 fg, ax = stdfig(
     f"LOG",
@@ -90,9 +90,9 @@ stdplot("LOG", T[i], logA[i], 'ko',
 
 tmp = r"S$^{-1}$"
 headerText(fg, f"""
-slope    = {A:.6f}{tmp}
--> tau   = {fEng(-1/A)}S
--> width = {fEng(-A/pi)}Hz
+slope    = {a:.6f}{tmp}
+-> tau   = {fEng(-1/a)}S
+-> width = {fEng(-a/pi)}Hz
 """)
 
 D.exportfigure(f"LOG")
@@ -118,7 +118,7 @@ D.exportfigure(f"PHAS")
 #                                                   PLOT FREQ SHIFT #
 #####################################################################
 
-skip = 5
+skip = 1
 
 # compute phase shift in cycles per second, i.e. Hertz
 dPdt = diff(P/2.0/pi) / (T[1]-T[0])
@@ -141,7 +141,6 @@ D.exportfigure(f"FREQ SHIFT")
 #                                                       SIGNAL FREQ #
 #####################################################################
 
-# compute phase shift in cycles per second, i.e. Hertz
 F = 95.855 + dPdt
 
 # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
@@ -153,10 +152,69 @@ fg, ax = stdfig(f"FREQ",
 stdplot("FREQ",
     T[skip+1:], 
     F[skip:], 
-    "-k",
+    ".", linewidth = 0.5, color = fg.colors["grey"] 
+    )
+
+from scipy.signal import savgol_filter
+G = savgol_filter(F, 50, 2)
+stdplot("FREQ",
+    T[skip+1:], 
+    G[skip:], 
+    "--", linewidth = 1.5, color = fg.colors["black"] 
     )
 
 D.exportfigure(f"FREQ")
+
+#####################################################################
+#                                                      FREQ VS AMPL #
+#####################################################################
+
+fg, ax = stdfig(f"FREQ VS AMPL",
+    "Amplitude", "A", A[skip+1:],
+    "Freq. shift", "Hz", F[skip:],
+    )
+
+stdplot("FREQ VS AMPL",
+    A[skip+1:], 
+    F[skip:], 
+    ".", linewidth = 0.5, color = fg.colors["grey"] 
+    )
+
+# from scipy.signal import savgol_filter
+# G = savgol_filter(F, 50, 2)
+# stdplot("FREQ",
+#     T[skip+1:], 
+#     G[skip:], 
+#     "--", linewidth = 1.5, color = fg.colors["black"] 
+#     )
+
+D.exportfigure(f"FREQ VS AMPL")
+
+
+#####################################################################
+#                                                  FREQ VS LOG AMPL #
+#####################################################################
+
+fg, ax = stdfig(f"FREQ VS LOG AMPL",
+    "Freq. shift", "Hz", F[skip:],
+    r"$\log\left(\frac{A(t)}{A(0)}\right)$", "", logA[skip+1:],
+    )
+
+stdplot("FREQ VS LOG AMPL",
+    F[skip:], 
+    logA[skip+1:], 
+    ".", linewidth = 0.5, color = fg.colors["grey"] 
+    )
+
+# from scipy.signal import savgol_filter
+# G = savgol_filter(F, 50, 2)
+# stdplot("FREQ",
+#     T[skip+1:], 
+#     G[skip:], 
+#     "--", linewidth = 1.5, color = fg.colors["black"] 
+#     )
+
+D.exportfigure(f"FREQ VS LOG AMPL")
 
 #####################################################################
 #                                                              DONE #
