@@ -34,9 +34,13 @@ def fBin(value, format = ".3f"):
     if S == "" : format = ".0f"
     return f"{value*C:{format}}{S}B"
 
-def displayFileSize(fp):
+def getFileSize(fp):
     from os import stat
     fs = stat(fp).st_size
+    return fs
+
+def displayFileSize(fp):
+    fs = getFileSize(fp)
     print(f'File Size is {fBin(fs)}')
     return fs
 
