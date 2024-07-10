@@ -1,7 +1,7 @@
 # DIRECTORIES
 /__pycache__
 .obsolete
-.outputs
+# .outputs
 .data
 
 # FILE TYPES
