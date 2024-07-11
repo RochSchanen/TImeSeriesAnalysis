@@ -1,13 +1,23 @@
 
+
+### SHOW ###
+
 show filename.csv filename.pdf --length [Seconds] --origin [Seconds] 
-fit filename.csv filename.out --frequency [Hertz] --filterlength [Seconds] --filterlevel [1, 2]
+show file to find typical period, amplitude, noise
+show.py filename.csv --length [Seconds] --origin [Seconds]
+
+### FIT ###
+
+fit filename.csv filename.dat --frequency [Hertz] --span [Seconds] --resolution [Seconds]
+
+### PSD ###
+
 psd filename.csv filename.out --timeconstant [Seconds] --stages [integer]
+
+###  ###
+
 unwrap filename.out --frequency [Hertz]
 
-
-show file to find typical period, amplitude, noise
-
-show.py filename.csv --length [Seconds] --origin [Seconds]
 
 fit file using sinusoidal signal. guess: frequency. noise filter: length and order.
 							guess: load blocks until two down crossing are found. ok.

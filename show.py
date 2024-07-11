@@ -1,11 +1,9 @@
 #!/usr/bin/python3
 # file: show.py
 # author: Roch Schanen
-# date: 2024 06 21
+# created: 2024 07 09
 # content:
-# repository:
 
-# BLOCK_SIZE = 1<<20 # 1MB
 BLOCK_SIZE = 1<<10 # 1KB
 
 #################
@@ -87,12 +85,12 @@ t_delta = T[1]-T[0]
 from figlib import fEng
 from ielib import getFileSize, fBin
 fs = getFileSize(fp)
-print(f"""--- file info
-file size       = {fBin(fs)}
-time start      = {fEng(t_first, "07.3f")}S
-time end        = {fEng(t_last, "07.3f")}S
-time intervals  = {fEng(t_delta)}S
----""")
+print(f"""    --- file info ---
+    file size       = {fBin(fs)}
+    time start      = {fEng(t_first, "07.3f")}S
+    time end        = {fEng(t_last, "07.3f")}S
+    time intervals  = {fEng(t_delta)}S
+    """)
 
 nb = 1
 
@@ -105,8 +103,13 @@ if len(argv)>2:
     if len(argv)>3:
         t_first = float(argv[3])
 
-    print(f"time origin = {fEng(t_first)}S")
-    print(f"time length = {fEng(t_length)}S")
+    print(f"EXPORT TO DISPLAY\n")
+
+    print(f"""    --- time subset ---
+    time origin     = {fEng(t_first)}S
+    time length     = {fEng(t_length)}S
+    time intervals  = {fEng(t_delta)}S
+    """)
 
     # load blocks until time start
     while T[-1] < t_first:
