@@ -60,13 +60,15 @@ if not validDir(p):
 if n.strip() == "":
     n = splitPath(argv[1])[1]
 
+fpo = ""
+
 ########################
 ### OTHER PARAMETERS ###
 ########################
 
-f0 = float(argv[3])
-s0 = float(argv[4])
-r0 = float(argv[5])
+f0 = float(argv[3]) # approx. frequency
+sp = float(argv[4]) # window/frame span
+rs = float(argv[5]) # step resolution
 
 ##################
 ### LAST BLOCK ###
@@ -74,8 +76,9 @@ r0 = float(argv[5])
 
 # read last block
 fh = open(fpi, "rb")
-# only use 1KB block: one data line
-# is approximately 30 characters.
+# only load 1KB block: one data line
+# is approximately 30 characters. we
+# only need the last line.
 fh.seek(-1024, 2)
 fb = fh.read()
 fh.close()
@@ -94,9 +97,15 @@ for l in ft.split("\n")[1:]:
 # GET LAST DATA TIME VALUE
 t_last = T[-1]
 
+######################################
+###################### FIRST FRAME ###
+######################################
+
 ###################
 ### FIRST BLOCK ###
 ###################
+
+nb = 0 # block number
 
 # read first block
 fh = open(fpi, "rb")
@@ -112,7 +121,7 @@ for l in L[:-1]:
     t, v = l.split(",")
     T.append(float(t))
     V.append(float(v))
-# buffer last line
+# buffer the last line
 ll = L[-1]
 
 # GET FIRST DATA TIME VALUE
@@ -121,13 +130,33 @@ t_first = T[0]
 # GET DATA TIME INTERVAL
 t_delta = T[1]-T[0]
 
-print(t_first, t_last, t_delta)
+###################
+### NEXT BLOCKS ###
+###################
+
+# first frame boundaries
+f_start, f_stop = t_first, t_first + sp
+
+# load blocks until frame length is reached
+while T[-1] < f_stop:
+    # increment block number
+    nb += 1
+    # read next block
+    fb = fh.read(BLOCK_SIZE)
+    # convert binary to text
+    ft = fb.decode('utf-8')
+    # catenate buffered line
+    ft = f"{ll}{ft}"
+    # convert text to values
+    L = ft.split("\n")
+    for l in L[:-1]:
+        t, v = l.split(",")
+        T.append(float(t))
+        V.append(float(v))
+    # buffer the last line
+    ll = L[-1]
 
 
-
-
-
-
-
-# from os.path import splitext
-# n, e = splitext(n)
+# compute an approximate two and a half times the
+# period length for the first frame length
+f_length = 2.50 / f0
