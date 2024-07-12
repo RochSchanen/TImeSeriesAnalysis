@@ -71,8 +71,8 @@ T, X = DATA[wp:wp+ww, 0] - DATA[wp, 0], DATA[wp:wp+ww, 1]
 # plot raw data
 fg, ax = stdFig(
     f"FRAME{FRAME_NUMBER}",
-    T, "S", "Time", 
-    X, "V", "Signal")
+    "Time", "S", X 
+    "Signal", "V", Y)
 
 #####################################################################
 #                                                       FIT FRAME 0 #
