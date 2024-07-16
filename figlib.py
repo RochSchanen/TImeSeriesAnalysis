@@ -230,7 +230,7 @@ def stdFig(name, X, xu, xl, Y, yu, yl):
 #                                                 STANDARD FIGURE 2 #
 #####################################################################
 
-def getScale(*args):
+def scaleParameters_0(*args):
     vmins, vmaxs = [], []
     for V in args:
         vmins.append(min(V))
@@ -244,14 +244,14 @@ def getScale(*args):
     return va, vf, vs, ve, M, S
 
 def setXTicks(ax, *args):
-    scale, suffix, s, e, M, S = getScale(*args)
+    scale, suffix, s, e, M, S = scaleParameters_0(*args)
     ax.set_xlim(s, e)
     ax.set_xticks(M)
     ax.set_xticks(S, minor = True)
     return scale, suffix
 
 def setYTicks(ax, *args):
-    scale, suffix, s, e, M, S = getScale(*args)
+    scale, suffix, s, e, M, S = scaleParameters_0(*args)
     ax.set_ylim(s, e)
     ax.set_yticks(M)
     ax.set_yticks(S, minor = True)
@@ -281,23 +281,104 @@ def stdplot(name, X, Y, *args, **kwargs):
     ax.plot(X*fg.scx, Y*fg.scy, *args, **kwargs)
     return
 
-if __name__ == "__main__":
+#####################################################################
+#                                                 STANDARD FIGURE 3 #
+#####################################################################
 
-    D = Document()
+class stdFigure():
 
-    D.opendocument("./test.pdf")
+    def axisScale(self, s, e):
+        # get engineer values
+        scale, suffix = vEng(e-s)
+        # rescale
+        s, e = s*scale, e*scale
+        # expand
+        d = 0.1*(e-s)
+        s, e = s-d, e+d
+        # done
+        return scale, suffix, s, e
 
-    X  = array([0.0, 1, 2])
-    Y1 = array([10.0, 20, 5])
-    Y2 = array([-10.0, +20, -5])  
+    def setXTicks(self, s, e, tiks = 7):
+        self.scx, self.sfx, s, e = self.axisScale(s, e)
+        M, S = getTickPositions(s, e, tiks)
+        self.ax.set_xlim(s, e)
+        self.ax.set_xticks(M)
+        self.ax.set_xticks(S, minor = True)
+        return
 
-    fg, ax = stdfig("name",
-        "label x", "unit x", X,
-        "label y", "unit y", Y1, Y2)
+    def setYTicks(self, s, e, tiks = 7):
+        self.scy, self.sfy, s, e = self.axisScale(s, e)
+        M, S = getTickPositions(s, e, tiks)
+        self.ax.set_ylim(s, e)
+        self.ax.set_yticks(M)
+        self.ax.set_yticks(S, minor = True)
+        return
 
-    stdplot("name", X, Y1, ".-b")
-    stdplot("name", X, Y2, "--r")
+    def __init__(self, name,
+        xl = "X", xu = "", # x labels and units
+        yl = "Y", yu = "", # y labels and units
+        ):
+        # figure name
+        self.fn = name
+        # instanciate matplotlib figure
+        self.fg, self.ax = selectfigure(name)
+        # set default style
+        self.ax.tick_params(axis = "both",  which = "both",  direction = "in")
+        self.ax.grid("on", which = "minor", linewidth = 0.5, linestyle = "--")
+        self.ax.grid("on", which = "major", linewidth = 1.0)
+        # record other parameters
+        self.labels = xl, yl
+        self.units  = xu, yu
+        self.data = []
+        # copy reference to matplotlib colors
+        from matplotlib.colors import CSS4_COLORS
+        self.color = CSS4_COLORS
+        # link back self to matplotlib figure
+        self.fg.stdFigureReference = self
+        # try first plot
+        self.rescale()
+        # done
+        return
 
-    D.exportfigure("name")
+    def plot(self, X, Y, *args, **kwargs):
+        # add plot with styles
+        line, = self.ax.plot(
+            X*self.scx,
+            Y*self.scy,
+            *args, **kwargs)
+        # record original set
+        self.data.append((X, Y, line))
+        # rescale axes
+        self.rescale()
+        # done 
+        return
 
-    D.closedocument()
+    def rescale(self):
+        # defaults range is -1, +1
+        xs, xe, ys, ye = -1.0, +1.0, -1.0, +1.0
+        if self.data:
+            # recompute mins and maxs for all axes
+            xmins, xmaxs, ymins, ymaxs = [], [], [], []
+            for X, Y, line in self.data:
+                xmins.append(min(X)); xmaxs.append(max(X))
+                ymins.append(min(Y)); ymaxs.append(max(Y))
+            xs, xe = min(xmins), max(xmaxs)
+            ys, ye = min(ymins), max(ymaxs)
+        # get axis labels and units
+        xl, yl = self.labels
+        xu, yu = self.units
+        # setup X scale
+        self.setXTicks(xs, xe)
+        XU = f" / {self.sfx}{xu}" if xu else ""
+        self.ax.set_xlabel(f"{xl}{XU}")
+        # setup Y scale
+        self.setYTicks(ys, ye)
+        YU = f" / {self.sfy}{yu}" if yu else ""
+        self.ax.set_ylabel(f"{yl}{YU}")
+        # re-scale all
+        if self.data:
+            for X, Y, line in self.data:
+                line.set_xdata(X*self.scx)
+                line.set_ydata(Y*self.scy)
+        # done
+        return

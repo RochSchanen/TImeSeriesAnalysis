@@ -1,5 +1,4 @@
 
-
 ### SHOW ###
 
 show filename.csv filename.pdf --length [Seconds] --origin [Seconds] 
@@ -27,3 +26,5 @@ fit.py filename.csv --blocksize 1024[KB] --filter 25[ms] --outputfile filename.t
 
 psd.py
 
+# from os.path import splitext
+# n, e = splitext(n)

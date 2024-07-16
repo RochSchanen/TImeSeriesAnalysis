@@ -113,7 +113,7 @@ if len(argv)>2:
 
     # load blocks until time start
     while T[-1] < t_first:
-        # release memory
+        # release memory               # remove !
         T, V = [], []
         # read next block
         fb = fh.read(BLOCK_SIZE)

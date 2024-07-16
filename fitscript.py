@@ -21,11 +21,12 @@ D.opendocument("./fitscript.pdf")
 # import results
 from numpy import load
 DATA = load({
-    500 : "./.outputs/SIGNALFIT_500_100.npz",
-    250 : "./.outputs/SIGNALFIT_250_50.npz",
-    100 : "./.outputs/SIGNALFIT_100_25.npz",
-    50  : "./.outputs/SIGNALFIT_50_20.npz",
-    }[500])
+    "new" :"./.outputs/Ringdown_1325mV_750mK.fit.npz",
+    500   : "./.outputs/SIGNALFIT_500_100.npz",
+    250   : "./.outputs/SIGNALFIT_250_50.npz",
+    100   : "./.outputs/SIGNALFIT_100_25.npz",
+     50   : "./.outputs/SIGNALFIT_50_20.npz",
+    }["new"])
 DATA_TIME = DATA["DATA_TIME"]
 DATA_AMPLITUDE = DATA["DATA_AMPLITUDE"]
 DATA_PERIOD = DATA["DATA_PERIOD"]
@@ -50,7 +51,6 @@ def ff(t, a, w):
     x = t/w
     y = a*exp(-x)
     return y
-
 
 # find time at half maximmum
 from numpy import searchsorted
