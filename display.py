@@ -21,7 +21,7 @@ DATA = {k:load(files[k]) for k in files.keys()}
 PLOTS = [
     ("600mK",  0.0, ["r"], {}),
     ("000mK", 11.0, ["b"], {}),
-    ("750mK",  0.0, ["k"], {}),
+    ("750mK",  30.0, ["k"], {}),
 ]
 
 ###################
@@ -46,7 +46,8 @@ for k, t, args, kwargs in PLOTS:
     P = DATA[k]["DATA_PERIOD"]
 
     from scipy.signal import savgol_filter
-    F = savgol_filter(1.0/P, 250, 2)
+    F = savgol_filter(1.0/P, 50, 3)
+    # F = 1/P
 
     fa.plot(T+t, A, *args, **kwargs)
     fl.plot(T+t, log(A/A[0]), *args, **kwargs)

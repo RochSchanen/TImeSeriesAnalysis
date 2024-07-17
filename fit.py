@@ -14,32 +14,22 @@ time_start = time()
 
 # debug enabled flag
 DEBUG = False
+
 # stop after "DEBUG_BREAK" frames if DEBUG is True
-DEBUG_BREAK = 0 # no break
+# DEBUG_BREAK = 0 # means no break
 DEBUG_BREAK = 5
+
 # list of frame to display
 debug_frame_list = [
-    # 1, 2, 3, 4, 5,
-    0, 1, 10, 100, 200,
+    1, 2, 3, 4, 5,
+    # 0, 1, 10, 100, 200,
     ] if DEBUG else []
+
+debug_frame_list = [1, 10, 30, 100]
 
 ##############
 ### CONFIG ###
 ##############
-
-""" To preserve memory usage, the file is
-read in successive blocks. The data are
-collected and disgarded immediately after
-analysis. Therefore, the code can run
-through any file size. """
-
-# A default block size of 1MB seems reasonable
-BLOCK_SIZE = 1<<20
-
-# excel file header length
-# (This is the number of lines to skip before
-# the data values become available)
-HEADER_SIZE = 4
 
 """ a few cycles of the signal are loaded first
 to guess the initial fitting parameters. The signal
@@ -148,74 +138,31 @@ f_interval  = float(argv[5])
 
 from figlib import Document
 D = Document()
-if DEBUG:
-    D.opendocument(f"{fp}/{fn}.DEBUG_FIGS.pdf")
-else:
-    D.opendocument(f"{fp}/{fn}.PREFIT.pdf")
+D.opendocument(f"{fp}/{fn}.fit.pdf")
 
-##################
-### LAST BLOCK ###
-##################
+#######################
+### GET FIRST BLOCK ###
+#######################
 
-# read last block
-fh = open(fpi, "rb")
-# only load 1KB block: one data line
-# is approximately 30 characters. we
-# only need the last line.
-fh.seek(-1024, 2)
-fb = fh.read()
-fh.close()
-# convert binary to text
-ft = fb.decode('utf-8')
-# convert text to values
-T, V = [], []
-for l in ft.split("\n")[1:]:
-    if l == "": break
-    t, v = l.split(",")
-    T.append(float(t))
-    V.append(float(v))
+from tools import loadBlock
+from tools import loadFrame
+from tools import getC0
 
-# GET LAST DATA TIME VALUE
-t_last = T[-1]
+# load first block
+loadBlock(fpi)
 
-##################################
-###################### FRAME 0 ###
-##################################
+# get time vector from first block
+T = getC0()
 
-nf = 0
-
-###################
-### FIRST BLOCK ###
-###################
-
-# block number
-nb = 0
-# read first block
-fh = open(fpi, "rb")
-# use default block size
-fb = fh.read(BLOCK_SIZE)
-# convert binary to text
-ft = fb.decode('utf-8')
-# convert text to values:
-# skip first four lines
-# the last line is most likely truncated
-T, V, L = [], [], ft.split("\n")[HEADER_SIZE:]
-for l in L[:-1]:
-    t, v = l.split(",")
-    T.append(float(t))
-    V.append(float(v))
-# buffer the last line
-ll = L[-1]
-
-# GET FIRST DATA TIME VALUE
+# GET START TIME
 t_first = T[0]
 
-# GET DATA TIME INTERVAL
+# GET TIME INTERVAL
 t_delta = T[1]-T[0]
 
-###################
-### NEXT BLOCKS ###
-###################
+#####################
+### GET PRE-FRAME ###
+#####################
 
 # compute frame length [S]
 f_length = PRE_CYCLES / s_frequency
@@ -224,39 +171,11 @@ f_length = PRE_CYCLES / s_frequency
 f_start = t_first
 f_stop  = t_first + f_length
 
-# load blocks until frame length is reached
-while not T[-1] > f_stop:
-    # increment block number
-    nb += 1
-    # read next block
-    fb = fh.read(BLOCK_SIZE)
-    # convert binary to text
-    ft = fb.decode('utf-8')
-    # catenate buffered line
-    ft = f"{ll}{ft}"
-    # convert text to values
-    L = ft.split("\n")
-    for l in L[:-1]:
-        t, v = l.split(",")
-        T.append(float(t))
-        V.append(float(v))
-    # buffer the last line
-    ll = L[-1]
+X, Y = loadFrame(f_start, f_stop)
 
-######################
-### PRE-FIT VALUES ###
-######################
-
-from numpy import array
-# convert list to numpy array
-X, Y = array(T), array(V)
-
-from numpy import searchsorted
-# search boundary indices
-j_length = searchsorted(X, f_length)
-
-# coerce to boundaries (clip tail)
-X, Y = X[:j_length], Y[:j_length]
+##########################
+### GET PRE-FIT VALUES ###
+##########################
 
 from figlib import stdfig
 # plot raw data
@@ -299,19 +218,26 @@ stdplot(f"FIG_PRE_", X[J], YF[J], 'ko',
 i1, i2 = J[0], J[1]
 
 # compute pre-fitting parameters:
-t1, t2 = T[i1], T[i2]       # time positions [S]
+t1, t2 = X[i1], X[i2]       # time positions [S]
 m1, m2 = min(Y), max(Y)     # signal extrema [V]
 
 # centre position, period, and amplitude
 P = [(t1+t2)/2.0, t2-t1, (m2-m1)/2.0]
 
+########################
+### RE-FIT PRE-FRAME ###
+########################
+
 from scipy.optimize import curve_fit as fit
-# fit PRE_CYCLES
 P, C = fit(ff, X, Y, p0 = P)
 stdplot(f"FIG_PRE_", X, ff(X, *P), "-k")
 
 # get parameters:
 phase, period, amplitude = P 
+
+#################################
+### EXPORT PRE-FIT PARAMETERS ###
+#################################
 
 # strip multiline string
 def strip(mls):
@@ -337,70 +263,43 @@ headerText(fg, strip(f"""
 # export
 D.exportfigure(f"FIG_PRE_")
 
-######################################
-###################### NEXT FRAMES ###
-######################################
-
 ####################
 ### PREPARE LOOP ###
 ####################
+
+from tools import getFrameCount
 
 # declare storage lists
 TIME, PERIOD, AMPLITUDE = [], [], []
 
 # setup frame boundaries
 f_start = t_first
-f_stop  = t_first + fix(f_width, period)
+f_stop  = t_first + f_width
 
 while True:
 
-    ###################
-    ### NEXT BLOCKS ###
-    ###################
+    #################
+    ### GET FRAME ###
+    #################
 
-    # load blocks until frame length is reached
-    while not T[-1] > f_stop:
-        # read next block
-        fb = fh.read(BLOCK_SIZE)
-        # end-of-file reached
-        if not fb: break
-        # increment block number
-        nb += 1
-        # convert binary to text
-        ft = fb.decode('utf-8')
-        # catenate buffered line
-        ft = f"{ll}{ft}"
-        # convert text to values
-        L = ft.split("\n")
-        for l in L[:-1]:
-            t, v = l.split(",")
-            T.append(float(t))
-            V.append(float(v))
-        # buffer the last line
-        ll = L[-1]
-    if not fb: break
+    data = loadFrame(f_start, f_stop)
+    if data is None: break
+    X, Y = data
 
     #################
     ### FIT FRAME ###
     #################
 
-    # convert list to numpy array
-    X, Y = array(T), array(V)
-
-    # search boundary index
-    j_start  = searchsorted(X, f_start)
-    j_stop   = searchsorted(X, f_stop)
-
-    # coerce to boundaries
-    X, Y = X[j_start:j_stop], Y[j_start:j_stop]
+    YF = savgol_filter(Y, int(1.0 / s_frequency * 0.25 / t_delta), 1)
 
     # fit frame
-    P, C = fit(ff, X-X[0], Y, p0 = P)
+    P, C = fit(ff, X-X[0], YF, p0 = P)
 
     # get parameters:
     phase, period, amplitude = P 
 
     # debug display
+    nf = getFrameCount()
     if nf in debug_frame_list:
         fg, ax = stdfig(f"FIG_FRAME{nf}_",
             "Time", "S", X,
@@ -429,27 +328,19 @@ while True:
         if DEBUG_BREAK:
             if nf > DEBUG_BREAK: break
 
-    ##########################
-    ### PREPARE NEXT FRAME ###
-    ##########################
-
-    # update frame number
-    nf += 1
-
-    # clear obsolete data (clip head)
-    T, V = T[j_start:], V[j_start:]
+    #########################
+    ### PREPARE NEXT LOOP ###
+    #########################
 
     # shift frame by an integer number of cycles
     f_start += fix(f_interval, period)
     f_stop  += fix(f_interval, period)
-
-    #################
-    ### LOOP ENDS ###
-    #################
-
+    
 ######################################
 ################## DISPLAY RESULTS ###
 ######################################
+
+from numpy import array
 
 # convert list to numpy arrays
 TIME = array(TIME)
@@ -476,10 +367,12 @@ if DEBUG:
 ### DONE ###
 ############
 
+from tools import getBlockCount
+
 # export
 D.closedocument()
 
 time_end = time()
 print(f"process duration = {fEng(time_end-time_start)}S")
-print(f"frame processed = {nf}")
-print(f"block loaded = {nb}")
+print(f"frame processed = {getFrameCount()}")
+print(f"block loaded = {getBlockCount()}")
