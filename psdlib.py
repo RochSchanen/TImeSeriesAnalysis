@@ -49,7 +49,7 @@ def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
     # 3 -> -18dB (wait  9 PSD_TMC)
     # 4 -> -24dB (wait 10 PSD_TMC)
     # - T is the time vector in units of Seconds
-    # - X is the signal vector in units of Volts
+    # - V is the signal vector in units of Volts
     # - use LPFS to initialise the low pass filter levels
 
     # the time sampling intervals must be fixed

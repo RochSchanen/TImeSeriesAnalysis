@@ -4,6 +4,79 @@
 # created: 2024 07 10
 # content:
 
+####################################### QUICK MATH ##################
+
+# compute engineer format for floating values
+# C is the scaling coefficient
+# S is the unit suffix
+def vEng(value):
+    from numpy import floor, log10
+    value = abs(value)
+    C, S = (1E+00, "") if float(value) == 0.0 else {
+         0: (1E+00,  ""),
+        -1: (1E+03, "m"),
+        -2: (1E+06, "µ"),
+        -3: (1E+09, "n"),
+        -4: (1E+12, "p"),
+        +1: (1E-03, "K"),
+        +2: (1E-06, "M"),
+        +3: (1E-09, "G"),
+        +4: (1E-12, "T"),
+    }[int(floor(log10(value)/3))]
+    return C, S
+
+# compute engineer format for binary values
+# C is the scaling coefficient
+# S is the unit suffix
+def vBin(value):
+    from numpy import floor, log
+    value = abs(value)
+    C, S = (1E+00, "") if float(value) == 0.0 else {
+         0: (1024**(-0),  ""),
+        +1: (1024**(-1), "K"),
+        +2: (1024**(-2), "M"),
+        +3: (1024**(-3), "G"),
+        +4: (1024**(-4), "T"),
+        +5: (1024**(-5), "P"),
+    }[int(floor(log(value)/(10*log(2))))]
+    return C, S
+
+# force value to be an integer
+# multiple of the modulo value.
+def fix(value, modulo):
+    i = round(value/modulo)
+    return i*modulo
+
+####################################### QUICK STRINGS ###############
+
+# strip each lines of a multiline string (mls)
+def strip(mls):
+    stripped = ""
+    for l in mls.split("\n"):
+        stripped = f"{stripped}{l.strip()}\n"
+    return stripped
+
+def fEng(value, format = ".3f"):
+    C, S = vEng(value)
+    return f"{value*C:{format}}{S}"
+
+def fBin(value, format = ".3f"):
+    C, S = vBin(value)
+    if S == "" : format = ".0f"
+    return f"{value*C:{format}}{S}B"
+
+#####################################################################
+
+def getFileSize(fp):
+    from os import stat
+    fs = stat(fp).st_size
+    return fs
+
+def displayFileSize(fp):
+    fs = getFileSize(fp)
+    print(f'File Size is {fBin(fs)}')
+    return fs
+
 #####################################################################
 
 # global variables for "loadBlock"
@@ -122,3 +195,5 @@ def getC1():
 
 def closeFile():
     _FH.close()
+
+#####################################################################

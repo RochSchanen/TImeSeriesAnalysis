@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# file: fit.py
+# file: psd.py
 # author: Roch Schanen
 # created: 2024 07 10
 # content:
@@ -16,7 +16,11 @@ from os.path import isdir as validDir
 from os.path import splitext
 
 # common libraries
-from numpy import pi, sin
+from numpy import pi
+from numpy import sin
+from numpy import sqrt
+from numpy import square
+from numpy import arctan2
 from numpy import savez
 from numpy import array
 
@@ -27,10 +31,7 @@ from scipy.signal import savgol_filter
 from tools import *
 
 from figlib import Document
-from figlib import stdfig
-from figlib import stdplot
-from figlib import headerText
-from figlib import fEng
+from figlib import stdFigure
 
 #####################################################################
 #####################################################################
@@ -45,7 +46,7 @@ time_start = time()
 
 DEBUG_BREAK = 0 # 0 means no break
 debug_frame_list = [1, 10, 30, 100]
-debug_frame_list = []
+# debug_frame_list = [0, 1, 2, 3, 4, 5]
 
 #############
 ### USAGE ###
@@ -55,12 +56,12 @@ debug_frame_list = []
 # all arguments are required
 if len(argv)<2:
     print("""    --- usage ---
-    > python3 fit.py
+    > python3 psd.py
         1) "sour.csv" source file path
         2) "dest.dat" destination file path
         3) "frequency" reference frequency [Hz]
-        4) "width" window size used to fit the harmonic function [S]
-        5) "interval" window shift intervals [S]
+        4) "time constant" of the PSD filter in [S]
+        5) "window size" of the data frames [S]
     """)
     exit()
 
@@ -102,16 +103,16 @@ fn, fe = splitext(fn)
 # approx. signal frequency:
 s_frequency = float(argv[3])
 # width of the fitting frames
-f_width     = float(argv[4])
+t_constant = float(argv[4])
 # intervals between the frames
-f_interval  = float(argv[5])
+f_width = float(argv[5])
 
 ############################################
 ### OPEN DOCUMENT FOR DISPLAYING RESULTS ###
 ############################################
 
 D = Document()
-D.opendocument(f"{fp}/{fn}.fit.pdf")
+D.opendocument(f"{fp}/{fn}.psd.pdf")
 
 #####################################################################
 #####################################################################
@@ -171,8 +172,8 @@ X, Y = loadFrame(f_start, f_stop)
 #####################
 
 # plot raw data
-fg, ax = stdfig(f"FIG_PRE_", "Time", "S", X, "Signal", "V", Y)
-stdplot(f"FIG_PRE_", X, Y, fg.colors["grey"])
+fg = stdFigure(f"FIG_PRE_", "Time", "S", "Signal", "V")
+fg.plot(X, Y, fg.color["grey"])
 
 # filter data using a Savitzky-Golay filter
 YF = savgol_filter(Y,
@@ -180,12 +181,12 @@ YF = savgol_filter(Y,
     int(1.0 / s_frequency * FILTER_LENGTH / t_delta),
     # filter polynomial order
     FILTER_ORDER)
-stdplot(f"FIG_PRE_", X, YF, "-.w")
+fg.plot(X, YF, "-.w")
 
 # find the down zero crossings
 I = YF > 0 # sign as boolean
 J = (I[:-1] & ~I[1:]).nonzero()[0]
-stdplot(f"FIG_PRE_", X[J], YF[J], 'ko',
+fg.plot(X[J], YF[J], 'ko',
     markerfacecolor = 'white',
     markersize = 8,
     )
@@ -205,13 +206,13 @@ P = [(t1+t2)/2.0, t2-t1, (m2-m1)/2.0]
 
 # fit frame
 P, C = fit(ff, X, Y, p0 = P)
-stdplot(f"FIG_PRE_", X, ff(X, *P), "-k")
+fg.plot(X, ff(X, *P), "-k")
 
 # FIT PARAMETERS:
 phase, period, amplitude = P 
 
 # display text results
-headerText(fg, strip(f"""
+fg.header(strip(f"""
     --- INITIAL GUESSES ---
     Phase     = {fEng((t1+t2)/2.0)}S
     Period    = {fEng(t2-t1)}S
@@ -230,15 +231,73 @@ D.exportfigure(f"FIG_PRE_")
 #####################################################################
 #####################################################################
 
+def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
+    # - PSD_FRQ is frequency
+    # - PSD_TMC is timer constant
+    # - PSD_NUM is number of low pass filters:
+    # 1 ->  -6dB (wait  5 PSD_TMC)
+    # 2 -> -12dB (wait  7 PSD_TMC)
+    # 3 -> -18dB (wait  9 PSD_TMC)
+    # 4 -> -24dB (wait 10 PSD_TMC)
+    # - T is the time vector in units of Seconds
+    # - V is the signal vector in units of Volts
+    # - use LPFS to initialise the low pass filter levels
+
+    # the time sampling intervals must be fixed
+    SAMPLING = T[1]-T[0]
+    # imports
+    from numpy import pi, sin, cos, zeros, sqrt
+    # compute phase vector
+    P = 2.0*pi*PSD_FRQ*T
+    # compute reference vectors
+    SIN, COS = sin(P), cos(P)
+    # compute digital low pass filter alpha value
+    PSD_ALPH = SAMPLING / (SAMPLING + PSD_TMC)
+    # reserve memory for the low pass filter outputs
+    VX = zeros((len(T), PSD_NUM))
+    VY = zeros((len(T), PSD_NUM))
+    # setup initial low pass filter levels (defaults to zeros)
+    if LPFS is not None: VX[0, :], VY[0, :] = LPFS
+    # sweep through references and the signal vector V
+    for i, (s, c, v) in enumerate(zip(SIN, COS, V)):
+        # use start up value on the first iteration
+        k = 0 if i == 0 else i-1
+        # compute and record the first stage detection output
+        VX[i, 0] = VX[k, 0] + (s*v - VX[k, 0])*PSD_ALPH
+        VY[i, 0] = VY[k, 0] + (c*v - VY[k, 0])*PSD_ALPH
+        # compute and record the next low pass filters state
+        for j in range(1, PSD_NUM):
+            VX[i, j] = VX[k, j] + (VX[i, j-1]-VX[k, j])*PSD_ALPH
+            VY[i, j] = VY[k, j] + (VY[i, j-1]-VY[k, j])*PSD_ALPH
+    # record low pass filters final levels
+    LPFS = VX[-1, :], VY[-1, :]
+    # keep last low pass filter data set
+    VXN, VYN = sqrt(2)*VX[:,-1], sqrt(2)*VY[:,-1]
+    # done: return the last low pass filters data sets
+    # with the last low pass filter levels
+    return VXN, VYN, LPFS
+
+#####################################################################
+#####################################################################
+#####################################################################
+
 ####################
 ### PREPARE LOOP ###
 ####################
 
 # declare storage lists
-TIME, PERIOD, AMPLITUDE = [], [], []
+TIME, PSDX, PSDY = [], [], []
 # setup frame boundaries
 f_start = t_first
 f_stop  = t_first + f_width
+# PSD reference frequency
+REF_FREQ = 1/period
+# PSD SLOPE (-6dB times the number of low pass filters)
+PSD_NUM = 2
+# PSD TIME CONSTANT in seconds, adjusted.
+PSD_TAU = t_constant / {1:3,2:5,3:7,4:10}[PSD_NUM]
+# INITIAL PSD LEVELS
+LPFS = ([amplitude/2.0]*PSD_NUM, [0.0]*PSD_NUM)
 
 while True:
 
@@ -248,45 +307,42 @@ while True:
 
     data = loadFrame(f_start, f_stop)
     if data is None: break
-    X, Y = data
+    T, V = data
 
-    ####################
-    ### FILTER FRAME ###
-    ####################
+    ########################
+    ### APPLY PSD FILTER ###
+    ########################
 
-    Y = savgol_filter(Y, int(1.0 / s_frequency * 0.25 / t_delta), 1)
+    # compute PSD outputs (p is the previous fitted phase)
+    X, Y, LPFS = PSD_RMS(
+        REF_FREQ, PSD_TAU, PSD_NUM,
+        T-phase, V, LPFS)
 
-    #################
-    ### FIT FRAME ###
-    #################
-
-    # fit frame
-    P, C = fit(ff, X-X[0], Y, p0 = P)
-
-    # get parameters:
-    phase, period, amplitude = P 
+    # get low pass filter channels
+    LPFX, LPFY = LPFS
 
     ############################
     ### EXTRA FRAMES DISPLAY ###
     ############################
 
-    # debug display
     nf = getFrameCount()
+
+    print(nf)
+
     if nf in debug_frame_list:
-        fg, ax = stdfig(f"FIG_FRAME{nf}_",
-            "Time", "S", X,
-            "Signal", "V", Y)
-        # add raw data
-        stdplot(f"FIG_FRAME{nf}_", X, Y, fg.colors["grey"])
-        # add fit
-        stdplot(f"FIG_FRAME{nf}_", X, ff(X-X[0], *P), "-k")
+
+        fg = stdFigure(f"FIG_FRAME{nf}_", "Time", "S", "Signal", "V")
+        fg.plot(T, V, fg.color["grey"])
+        fg.plot(T, X, "--b")
+        fg.plot(T, Y, "--r")
+        
         # export results to figure
-        headerText(fg, strip(f"""
+        fg.header(strip(f"""
         --- FRAME{nf} ---
-        Phase     = {fEng(phase)}S
-        Period    = {fEng(period)}S
-        Amplitude = {fEng(amplitude)}V
+        X = {fEng(LPFX[-1])}V
+        Y = {fEng(LPFY[-1])}V
         """))
+
         # export
         D.exportfigure(f"FIG_FRAME{nf}_")
 
@@ -295,10 +351,9 @@ while True:
     ###################
 
     # collect data
-    TIME.append((X[0]+X[-1])/2.0)
-    PERIOD.append(period)
-    AMPLITUDE.append(amplitude)
-
+    TIME.append(T[-1])
+    PSDX.append(LPFX[-1])
+    PSDY.append(LPFY[-1])
 
     #########################
     ### PREPARE NEXT LOOP ###
@@ -311,39 +366,118 @@ while True:
     # shift frame by an integer number of cycles
     # the fix is important as it allows to keep
     # the initial guess parameter "phase" valid
-    f_start += fix(f_interval, period)
-    f_stop  += fix(f_interval, period)
+    f_start += f_width
+    f_stop  += f_width
 
 #####################################################################
 #####################################################################
 #####################################################################
+
+TIME = array(TIME)
+PSDX = array(PSDX)
+PSDY = array(PSDY)
+
+# compute PSD amplitude
+AMPL = sqrt(square(PSDX)+square(PSDY))
+
+# plot amplitudes in [V]
+fg = stdFigure(f"FIG_AMPL", "Time", "S", "Amplitude", "V")
+fg.plot(TIME, PSDX, fg.color["blue"])
+fg.plot(TIME, PSDY, fg.color["red"])
+fg.plot(TIME, AMPL, fg.color["black"])
+D.exportfigure(f"FIG_AMPL")
+
+# compute PSD phase
+PHAS = arctan2(PSDY, PSDX)
+# find the down zero crossings
+I = PHAS > 0
+J = (I[:-1] & ~I[1:]).nonzero()[0]
+# unwrap phase (no modulo)
+for j in J: PHAS[j+1:] += 2.0*pi
+# plot phase in units of cycles: 1 cycle <=> 360
+fg = stdFigure(f"FIG_PHAS", "Time", "S", "Phase", "Cycles")
+fg.plot(TIME, PHAS/2.0/pi, fg.color["grey"])
+D.exportfigure(f"FIG_PHAS")
+
+# #####################################################################
+# #                                                   PLOT FREQ SHIFT #
+# #####################################################################
+
+# skip = 1
+
+# # compute phase shift in cycles per second, i.e. Hertz
+# dPdt = diff(P/2.0/pi) / (T[1]-T[0])
+
+# # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
+# fg, ax = stdfig(f"FREQ SHIFT",
+#     "Time", "S", T[skip+1:],
+#     "Freq. shift", "Hz", dPdt[skip:],
+#     )
+
+# stdplot("FREQ SHIFT",
+#     T[skip+1:],
+#     dPdt[skip:],
+#     "-k",
+#     )
+
+# D.exportfigure(f"FREQ SHIFT")
+
+# #####################################################################
+# #                                                       SIGNAL FREQ #
+# #####################################################################
+
+# F = 95.855 + dPdt
+
+# # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
+# fg, ax = stdfig(f"FREQ",
+#     "Time", "S", T[skip+1:],
+#     "Freq. shift", "Hz", F[skip:],
+#     )
+
+# stdplot("FREQ",
+#     T[skip+1:], 
+#     F[skip:], 
+#     ".", linewidth = 0.5, color = fg.colors["grey"] 
+#     )
+
+# from scipy.signal import savgol_filter
+# G = savgol_filter(F, 50, 2)
+# stdplot("FREQ",
+#     T[skip+1:], 
+#     G[skip:], 
+#     "--", linewidth = 1.5, color = fg.colors["black"] 
+#     )
+
+# D.exportfigure(f"FREQ")
 
 #############################
 ### SAVE RESULTS ###
 #############################
 
-# convert list to numpy arrays
-TIME = array(TIME)
-PERIOD = array(PERIOD)
-AMPLITUDE = array(AMPLITUDE)
+# # convert list to numpy arrays
+# TIME = array(TIME)
+# PERIOD = array(PERIOD)
+# AMPLITUDE = array(AMPLITUDE)
 
-# export results
-savez(f"{fp}/{fn}.fit.npz",
-    DATA_TIME = TIME,
-    DATA_AMPLITUDE = AMPLITUDE,
-    DATA_PERIOD = PERIOD,    
-    )
+# # export results
+# savez(f"{fp}/{fn}.fit.npz",
+#     DATA_TIME = TIME,
+#     DATA_AMPLITUDE = AMPLITUDE,
+#     DATA_PERIOD = PERIOD,    
+#     )
 
 #############################
 ### QUICK RESULTS DISPLAY ###
 #############################
 
-stdfig(f"FIG_A", "Time", "S", TIME, "Amplitude", "V", AMPLITUDE)
-stdplot(f"FIG_A", TIME, AMPLITUDE, fg.colors["grey"])
-stdfig(f"FIG_F", "Time", "S", TIME, "Frequency", "Hz", 1.0/PERIOD)
-stdplot(f"FIG_F", TIME, 1/PERIOD, fg.colors["grey"])
-D.exportfigure(f"FIG_A")
-D.exportfigure(f"FIG_F")
+# stdfig(f"FIG_A", "Time", "S", TIME, "Amplitude", "V", AMPLITUDE)
+# stdplot(f"FIG_A", TIME, AMPLITUDE, fg.color["grey"])
+
+# stdfig(f"FIG_F", "Time", "S", TIME, "Frequency", "Hz", 1.0/PERIOD)
+# stdplot(f"FIG_F", TIME, 1/PERIOD, fg.color["grey"])
+
+# D.exportfigure(f"FIG_A")
+# D.exportfigure(f"FIG_F")
 
 ############
 ### DONE ###

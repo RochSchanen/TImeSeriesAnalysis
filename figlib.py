@@ -382,3 +382,13 @@ class stdFigure():
                 line.set_ydata(Y*self.scy)
         # done
         return
+
+    def header(self, text):
+        w, h = array([1, 1 / 1.4143])*0.7
+        x, y = (1-w)/2, (1-h)/2
+        tx = self.fg.text(x, 3*y/2+h, text)
+        tx.set_fontfamily('monospace')
+        tx.set_horizontalalignment('left')
+        tx.set_verticalalignment('center')
+        tx.set_fontsize("small")
+        return tx
