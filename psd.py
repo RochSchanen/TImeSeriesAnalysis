@@ -44,9 +44,9 @@ time_start = time()
 ### DEBUG ###
 #############
 
-DEBUG_BREAK = 0 # 0 means no break
+DEBUG_BREAK = 25 # 0 means no break
 # debug_frame_list = [1, 10, 30, 100]
-debug_frame_list = [10]
+debug_frame_list = [1, 10]
 
 #############
 ### USAGE ###
@@ -77,6 +77,8 @@ if not validPath(argv[1]):
 # copy and continue
 fpi = argv[1]
 
+print(f"processing '{fpi}'")
+
 ###################
 ### OUTPUT FILE ###
 ###################
@@ -96,6 +98,8 @@ if fn.strip() == "":
 # split between file name and file extension
 fn, fe = splitext(fn)
 
+print(f"all outputs go to '{fp}\\'")
+
 ########################
 ### OTHER PARAMETERS ###
 ########################
@@ -106,6 +110,7 @@ r_frequency = float(argv[3])
 t_constant = float(argv[4])
 # frames length (one point computed per frame)
 f_width = float(argv[5])
+print(f"{f_width}")
 
 ############################################
 ### OPEN DOCUMENT FOR DISPLAYING RESULTS ###
@@ -114,6 +119,8 @@ f_width = float(argv[5])
 D = Document()
 # use a ".psd." extension for all "psd.py" outputs files
 D.opendocument(f"{fp}/{fn}.psd.pdf")
+
+print(f"quick view exported to '{fp}/{fn}.psd.pdf'")
 
 #####################################################################
 #####################################################################
@@ -131,6 +138,9 @@ T = getC0()
 t_first = T[0]
 # TIME INTERVAL:
 t_delta = T[1]-T[0]
+
+print(f"data start     = {fEng(t_first)}S")
+print(f"data intervals = {fEng(t_delta)}S")
 
 #####################
 ### PRE-FIT FRAME ###
@@ -302,9 +312,15 @@ REF_FREQ = 1.0/period
 # PSD SLOPE (-6dB times the number of low pass filters)
 PSD_NUM = 2
 # PSD TIME CONSTANT in seconds, adjusted (see PSD_RMS comments).
-PSD_TAU = t_constant / {1:3, 2:5, 3:7, 4:10}[PSD_NUM]
+# PSD_TAU = t_constant / {1:3, 2:5, 3:7, 4:10}[PSD_NUM]
+PSD_TAU = t_constant
+
 # INITIAL PSD LEVELS
 LPFS = ([amplitude/2.0]*PSD_NUM, [0.0]*PSD_NUM)
+
+print(f"reference frequency = {fEng(REF_FREQ)}Hz")
+print(f"time constant       = {fEng(PSD_TAU)}S")
+print(f"window size         = {fEng(f_width)}S")
 
 while True:
 
@@ -387,6 +403,9 @@ while True:
 #########################################
 ### COMPUTE RESULTS AND QUICK DISPLAY ###
 #########################################
+t_constant * {1:3, 2:5, 3:7, 4:10}[PSD_NUM]
+
+# skip = round()
 
 # convert lists to numpy arrays
 TIME = array(TIME)
@@ -405,9 +424,23 @@ D.exportfigure(f"FIG_AMPL")
 
 # compute signal phase from PSD reference in cycles
 PHAS = arctan2(PSDY, PSDX)/2.0/pi
-# find down zero crossings of the phase
+
+
+fg = stdFigure(f"FIG_WRAP", "Time", "S", "Phase", "Cycles")
+fg.plot(TIME[1:], diff(PHAS), ".-", color = fg.color["grey"])
+
+# find up zero crossings of the phase
 I = PHAS > 0
 J = (I[:-1] & ~I[1:]).nonzero()[0]
+
+# fg.plot(TIME[J], PHAS[J], 'ko',
+#     markerfacecolor = 'white',
+#     markersize = 8,
+#     )
+
+D.exportfigure(f"FIG_WRAP")
+
+
 # unwrap phase (no modulo, keep phase continuous for derivation)
 for j in J: PHAS[j+1:] += 1.0
 # plot the continuous phase signal phase shift in cycle units
