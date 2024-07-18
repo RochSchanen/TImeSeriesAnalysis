@@ -5,15 +5,14 @@
 # content:
 
 # standard libraries
-from time import time
-
-from sys import argv, exit
 from sys import argv, exit
 
 from os.path import exists as validPath
 from os.path import split as splitPath
 from os.path import isdir as validDir
 from os.path import splitext
+
+from time import time
 
 # common libraries
 from numpy import pi
@@ -23,6 +22,7 @@ from numpy import square
 from numpy import arctan2
 from numpy import savez
 from numpy import array
+from numpy import diff
 
 from scipy.optimize import curve_fit as fit
 from scipy.signal import savgol_filter
@@ -45,8 +45,8 @@ time_start = time()
 #############
 
 DEBUG_BREAK = 0 # 0 means no break
-debug_frame_list = [1, 10, 30, 100]
-# debug_frame_list = [0, 1, 2, 3, 4, 5]
+# debug_frame_list = [1, 10, 30, 100]
+debug_frame_list = [10]
 
 #############
 ### USAGE ###
@@ -57,11 +57,11 @@ debug_frame_list = [1, 10, 30, 100]
 if len(argv)<2:
     print("""    --- usage ---
     > python3 psd.py
-        1) "sour.csv" source file path
-        2) "dest.dat" destination file path
-        3) "frequency" reference frequency [Hz]
-        4) "time constant" of the PSD filter in [S]
-        5) "window size" of the data frames [S]
+        1) "sour.csv": source file path
+        2) "dest.dat": destination file path
+        3) "frequency": reference frequency [Hz]
+        4) "time_constant": low pass filters time constant [S]
+        5) "window size" data frame lengths [S]
     """)
     exit()
 
@@ -69,12 +69,12 @@ if len(argv)<2:
 ### SOURCE FILE ###
 ###################
 
-# check path
+# check file path validity
 if not validPath(argv[1]):
     print(f"file '{argv[1]}' not found.")
     print(f"exiting...")
     exit()
-# build input path
+# copy and continue
 fpi = argv[1]
 
 ###################
@@ -82,29 +82,29 @@ fpi = argv[1]
 ###################
 
 fp, fn = splitPath(argv[2])
-# coerce path
+# coerce path (use default output directory)
 if fp.strip() == "":
     fp = f".outputs"
-# check path
+# check path validity
 if not validDir(fp):
     print(f"directory '{fp}' not found.")
     print(f"exiting...")
     exit()
-# coerce name
+# coerce name (copy input filename)
 if fn.strip() == "":
-    fn = splitPath(argv[1])[1]
-# split file name
+    fn = splitPath(fpi)[1]
+# split between file name and file extension
 fn, fe = splitext(fn)
 
 ########################
 ### OTHER PARAMETERS ###
 ########################
 
-# approx. signal frequency:
-s_frequency = float(argv[3])
-# width of the fitting frames
+# reference frequency [Hz]
+r_frequency = float(argv[3])
+# time constant of the low pass filter [S]
 t_constant = float(argv[4])
-# intervals between the frames
+# frames length (one point computed per frame)
 f_width = float(argv[5])
 
 ############################################
@@ -112,6 +112,7 @@ f_width = float(argv[5])
 ############################################
 
 D = Document()
+# use a ".psd." extension for all "psd.py" outputs files
 D.opendocument(f"{fp}/{fn}.psd.pdf")
 
 #####################################################################
@@ -142,7 +143,10 @@ clean zeros crossing. From the zeros values, we
 compute the approximate phase and period of the
 signal and the extrema gives us an approximate
 value of the amplitude. Then a fit is evaluated
-on these first few cycles as check """
+on these first few cycles and used to compute the
+initial low pass filter levels and the reference
+phase (PSDX maximum, PSDY minimum). This insures 
+clean start values for the filters. """
 
 # number of cycles for pre-fit estimations
 # (The value of 2.5 insures that at leat two
@@ -155,10 +159,10 @@ PRE_CYCLES = 2.5
 FILTER_LENGTH  = 0.25
 
 # polynomial order of the Savitzky-Golay filter
-FILTER_ORDER = 2
+FILTER_ORDER = 2 # was empirically determined
 
 # compute frame length [S]
-f_length = PRE_CYCLES / s_frequency
+f_length = PRE_CYCLES / r_frequency
 
 # compute frame boundaries
 f_start = t_first
@@ -176,9 +180,12 @@ fg = stdFigure(f"FIG_PRE_", "Time", "S", "Signal", "V")
 fg.plot(X, Y, fg.color["grey"])
 
 # filter data using a Savitzky-Golay filter
+# (the filter insure a clean single zero crossing
+# per period, avoiding back crossing due to poor
+# signal-to-noise ratio)
 YF = savgol_filter(Y,
     # filter length (in points)
-    int(1.0 / s_frequency * FILTER_LENGTH / t_delta),
+    int(1.0 / r_frequency * FILTER_LENGTH / t_delta),
     # filter polynomial order
     FILTER_ORDER)
 fg.plot(X, YF, "-.w")
@@ -227,9 +234,9 @@ fg.header(strip(f"""
 # figure done
 D.exportfigure(f"FIG_PRE_")
 
-#####################################################################
-#####################################################################
-#####################################################################
+#################################################################
+### THE FOLLOWING FUNCTION EMULATES THE DIGITAL LOCK-IN SR830 ###
+#################################################################
 
 def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
     # - PSD_FRQ is frequency
@@ -274,7 +281,7 @@ def PSD_RMS(PSD_FRQ, PSD_TMC, PSD_NUM, T, V, LPFS = None):
     # keep last low pass filter data set
     VXN, VYN = sqrt(2)*VX[:,-1], sqrt(2)*VY[:,-1]
     # done: return the last low pass filters data sets
-    # with the last low pass filter levels
+    # with the last low pass filter current levels
     return VXN, VYN, LPFS
 
 #####################################################################
@@ -291,11 +298,11 @@ TIME, PSDX, PSDY = [], [], []
 f_start = t_first
 f_stop  = t_first + f_width
 # PSD reference frequency
-REF_FREQ = 1/period
+REF_FREQ = 1.0/period
 # PSD SLOPE (-6dB times the number of low pass filters)
 PSD_NUM = 2
-# PSD TIME CONSTANT in seconds, adjusted.
-PSD_TAU = t_constant / {1:3,2:5,3:7,4:10}[PSD_NUM]
+# PSD TIME CONSTANT in seconds, adjusted (see PSD_RMS comments).
+PSD_TAU = t_constant / {1:3, 2:5, 3:7, 4:10}[PSD_NUM]
 # INITIAL PSD LEVELS
 LPFS = ([amplitude/2.0]*PSD_NUM, [0.0]*PSD_NUM)
 
@@ -306,29 +313,33 @@ while True:
     #######################
 
     data = loadFrame(f_start, f_stop)
+    
+    # break when end-of-file is reached
     if data is None: break
+    
+    # split time and signal channels
     T, V = data
 
     ########################
     ### APPLY PSD FILTER ###
     ########################
 
-    # compute PSD outputs (p is the previous fitted phase)
+    # compute PSD outputs (coerce phase to zero)
     X, Y, LPFS = PSD_RMS(
         REF_FREQ, PSD_TAU, PSD_NUM,
         T-phase, V, LPFS)
 
-    # get low pass filter channels
+    # split low pass filter channels
     LPFX, LPFY = LPFS
 
     ############################
     ### EXTRA FRAMES DISPLAY ###
     ############################
 
-    nf = getFrameCount()
+    # frame number is one less than frame count
+    nf = getFrameCount()-1
 
-    print(nf)
-
+    # export listed frames
     if nf in debug_frame_list:
 
         fg = stdFigure(f"FIG_FRAME{nf}_", "Time", "S", "Signal", "V")
@@ -359,13 +370,13 @@ while True:
     ### PREPARE NEXT LOOP ###
     #########################
 
-    # debug break
     if DEBUG_BREAK:
-        if nf > DEBUG_BREAK: break
+        if nf > DEBUG_BREAK:
+            break
 
-    # shift frame by an integer number of cycles
-    # the fix is important as it allows to keep
-    # the initial guess parameter "phase" valid
+    # shift frame by an exact integer number of cycles.
+    # this fix is important as it keeps the coherence
+    # of the phase parameter.
     f_start += f_width
     f_stop  += f_width
 
@@ -373,6 +384,11 @@ while True:
 #####################################################################
 #####################################################################
 
+#########################################
+### COMPUTE RESULTS AND QUICK DISPLAY ###
+#########################################
+
+# convert lists to numpy arrays
 TIME = array(TIME)
 PSDX = array(PSDX)
 PSDY = array(PSDY)
@@ -382,102 +398,47 @@ AMPL = sqrt(square(PSDX)+square(PSDY))
 
 # plot amplitudes in [V]
 fg = stdFigure(f"FIG_AMPL", "Time", "S", "Amplitude", "V")
-fg.plot(TIME, PSDX, fg.color["blue"])
-fg.plot(TIME, PSDY, fg.color["red"])
-fg.plot(TIME, AMPL, fg.color["black"])
+fg.plot(TIME, PSDX, "-.", linewidth = 0.5, color = fg.color["blue"])
+fg.plot(TIME, PSDY, "-.", linewidth = 0.5, color = fg.color["red"])
+fg.plot(TIME, AMPL, linewidth = 1.0, color = fg.color["black"])
 D.exportfigure(f"FIG_AMPL")
 
-# compute PSD phase
-PHAS = arctan2(PSDY, PSDX)
-# find the down zero crossings
+# compute signal phase from PSD reference in cycles
+PHAS = arctan2(PSDY, PSDX)/2.0/pi
+# find down zero crossings of the phase
 I = PHAS > 0
 J = (I[:-1] & ~I[1:]).nonzero()[0]
-# unwrap phase (no modulo)
-for j in J: PHAS[j+1:] += 2.0*pi
-# plot phase in units of cycles: 1 cycle <=> 360
+# unwrap phase (no modulo, keep phase continuous for derivation)
+for j in J: PHAS[j+1:] += 1.0
+# plot the continuous phase signal phase shift in cycle units
 fg = stdFigure(f"FIG_PHAS", "Time", "S", "Phase", "Cycles")
-fg.plot(TIME, PHAS/2.0/pi, fg.color["grey"])
+fg.plot(TIME, PHAS, fg.color["grey"])
 D.exportfigure(f"FIG_PHAS")
 
-# #####################################################################
-# #                                                   PLOT FREQ SHIFT #
-# #####################################################################
+# compute the signal frequency from the reference
+# frequency and the phase derivative in Hz
+FREQ = REF_FREQ + diff(PHAS) / (TIME[1]-TIME[0])
 
-# skip = 1
+# plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
+fg = stdFigure(f"FIG_FREQ", "Time", "S", "Frequency", "Hz")
+fg.plot(TIME[1:], FREQ, color = fg.color["grey"])
 
-# # compute phase shift in cycles per second, i.e. Hertz
-# dPdt = diff(P/2.0/pi) / (T[1]-T[0])
+sgf_FREQ = savgol_filter(FREQ, 25, 2)
+fg.plot(TIME[1:], sgf_FREQ, "--",
+    linewidth = 1.5, color = fg.color["purple"])
 
-# # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
-# fg, ax = stdfig(f"FREQ SHIFT",
-#     "Time", "S", T[skip+1:],
-#     "Freq. shift", "Hz", dPdt[skip:],
-#     )
-
-# stdplot("FREQ SHIFT",
-#     T[skip+1:],
-#     dPdt[skip:],
-#     "-k",
-#     )
-
-# D.exportfigure(f"FREQ SHIFT")
-
-# #####################################################################
-# #                                                       SIGNAL FREQ #
-# #####################################################################
-
-# F = 95.855 + dPdt
-
-# # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
-# fg, ax = stdfig(f"FREQ",
-#     "Time", "S", T[skip+1:],
-#     "Freq. shift", "Hz", F[skip:],
-#     )
-
-# stdplot("FREQ",
-#     T[skip+1:], 
-#     F[skip:], 
-#     ".", linewidth = 0.5, color = fg.colors["grey"] 
-#     )
-
-# from scipy.signal import savgol_filter
-# G = savgol_filter(F, 50, 2)
-# stdplot("FREQ",
-#     T[skip+1:], 
-#     G[skip:], 
-#     "--", linewidth = 1.5, color = fg.colors["black"] 
-#     )
-
-# D.exportfigure(f"FREQ")
+D.exportfigure(f"FIG_FREQ")
 
 #############################
 ### SAVE RESULTS ###
 #############################
 
-# # convert list to numpy arrays
-# TIME = array(TIME)
-# PERIOD = array(PERIOD)
-# AMPLITUDE = array(AMPLITUDE)
-
-# # export results
-# savez(f"{fp}/{fn}.fit.npz",
-#     DATA_TIME = TIME,
-#     DATA_AMPLITUDE = AMPLITUDE,
-#     DATA_PERIOD = PERIOD,    
-#     )
-
-#############################
-### QUICK RESULTS DISPLAY ###
-#############################
-
-# stdfig(f"FIG_A", "Time", "S", TIME, "Amplitude", "V", AMPLITUDE)
-# stdplot(f"FIG_A", TIME, AMPLITUDE, fg.color["grey"])
-
-# stdfig(f"FIG_F", "Time", "S", TIME, "Frequency", "Hz", 1.0/PERIOD)
-# stdplot(f"FIG_F", TIME, 1/PERIOD, fg.color["grey"])
-
-# D.exportfigure(f"FIG_A")
-# D.exportfigure(f"FIG_F")
+# export results
+savez(f"{fp}/{fn}.psd.npz",
+    DATA_TIME = TIME,
+    DATA_AMPLITUDE = AMPL,
+    DATA_PERIOD = FREQ,    
+    )
 
 ############
 ### DONE ###
@@ -489,5 +450,5 @@ D.closedocument()
 # display duration and basic infos
 time_end = time()
 print(f"process duration = {fEng(time_end-time_start)}S")
-print(f"frame processed = {getFrameCount()}")
-print(f"block loaded = {getBlockCount()}")
+print(f"frames processed = {getFrameCount()}")
+print(f"blocks loaded = {getBlockCount()}")
