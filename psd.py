@@ -10,7 +10,7 @@ from sys import argv, exit
 from os.path import exists as validPath
 from os.path import split as splitPath
 from os.path import isdir as validDir
-from os.path import splitext
+from os.path import splitext as splitExt
 
 from time import time
 
@@ -98,7 +98,7 @@ if not validDir(fp):
 if fn.strip() == "":
     fn = splitPath(fpi)[1]
 # split between file name and file extension
-fn, fe = splitext(fn)
+fn, fe = splitExt(fn)
 
 print(f"all outputs go to '{fp}\\'")
 
