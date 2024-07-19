@@ -23,6 +23,8 @@ from numpy import arctan2
 from numpy import savez
 from numpy import array
 from numpy import diff
+from numpy import where
+from numpy import any as np_any
 
 from scipy.optimize import curve_fit as fit
 from scipy.signal import savgol_filter
@@ -44,7 +46,7 @@ time_start = time()
 ### DEBUG ###
 #############
 
-DEBUG_BREAK = 25 # 0 means no break
+DEBUG_BREAK = 0 # 0 means no break
 # debug_frame_list = [1, 10, 30, 100]
 debug_frame_list = [1, 10]
 
@@ -162,6 +164,7 @@ clean start values for the filters. """
 # (The value of 2.5 insures that at leat two
 # zeroes are found within the time interval) 
 PRE_CYCLES = 2.5
+PRE_CYCLES = 12.5
 
 # window size of the Savitzky-Golay filter
 # (the size is given in cycle units: a value
@@ -308,7 +311,8 @@ TIME, PSDX, PSDY = [], [], []
 f_start = t_first
 f_stop  = t_first + f_width
 # PSD reference frequency
-REF_FREQ = 1.0/period
+REF_FREQ = 1.0/(period)
+# REF_FREQ = 95.89
 # PSD SLOPE (-6dB times the number of low pass filters)
 PSD_NUM = 2
 # PSD TIME CONSTANT in seconds, adjusted (see PSD_RMS comments).
@@ -424,41 +428,41 @@ D.exportfigure(f"FIG_AMPL")
 
 # compute signal phase from PSD reference in cycles
 PHAS = arctan2(PSDY, PSDX)/2.0/pi
+# detect phase jumps: only one of the two array I or J is not all False
+I = diff(PHAS, prepend = PHAS[0]) > +0.8
+J = diff(PHAS, prepend = PHAS[0]) < -0.8
+# unwrap phase into a monotonic function
+for i in where(I)[0]: PHAS[i:] -= 1.0
+for j in where(J)[0]: PHAS[j:] += 1.0
 
-
-fg = stdFigure(f"FIG_WRAP", "Time", "S", "Phase", "Cycles")
-fg.plot(TIME[1:], diff(PHAS), ".-", color = fg.color["grey"])
-
-# find up zero crossings of the phase
-I = PHAS > 0
-J = (I[:-1] & ~I[1:]).nonzero()[0]
-
-# fg.plot(TIME[J], PHAS[J], 'ko',
-#     markerfacecolor = 'white',
-#     markersize = 8,
-#     )
-
-D.exportfigure(f"FIG_WRAP")
-
-
-# unwrap phase (no modulo, keep phase continuous for derivation)
-for j in J: PHAS[j+1:] += 1.0
-# plot the continuous phase signal phase shift in cycle units
+# plot the continuous signal phase in cycle
 fg = stdFigure(f"FIG_PHAS", "Time", "S", "Phase", "Cycles")
 fg.plot(TIME, PHAS, fg.color["grey"])
+
+if np_any(TIME[I]):
+    fg.plot(TIME[I], PHAS[I], 'ko',
+        markersize = 8, markerfacecolor = 'white')
+
+if np_any(TIME[J]):
+    fg.plot(TIME[J], PHAS[J], 'ko',
+        markersize = 8, markerfacecolor = 'white')
+
+sgf_PHAS = savgol_filter(PHAS, 25, 1)
+fg.plot(TIME, sgf_PHAS, "--",
+    linewidth = 1.5, color = fg.color["purple"])
+
 D.exportfigure(f"FIG_PHAS")
 
 # compute the signal frequency from the reference
 # frequency and the phase derivative in Hz
 FREQ = REF_FREQ + diff(PHAS) / (TIME[1]-TIME[0])
 
+sgf_FREQ = REF_FREQ + diff(sgf_PHAS) / (TIME[1]-TIME[0])
+
 # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
 fg = stdFigure(f"FIG_FREQ", "Time", "S", "Frequency", "Hz")
-fg.plot(TIME[1:], FREQ, color = fg.color["grey"])
-
-sgf_FREQ = savgol_filter(FREQ, 25, 2)
-fg.plot(TIME[1:], sgf_FREQ, "--",
-    linewidth = 1.5, color = fg.color["purple"])
+# fg.plot(TIME[1:], FREQ, color = fg.color["grey"])
+fg.plot(TIME[1:], sgf_FREQ, "-", linewidth = 1.0, color = fg.color["purple"])
 
 D.exportfigure(f"FIG_FREQ")
 
