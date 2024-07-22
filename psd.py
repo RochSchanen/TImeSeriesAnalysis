@@ -4,6 +4,11 @@
 # created: 2024 07 10
 # content:
 
+# cd c:/Users/schanen/Documents/GitHub/TImeSeriesAnalysis/
+# py psd.py ".data/Recording 3.csv" ".outputs/" 96 0.2 1.0
+# py psd.py ".data/Ringdown_1325mV_750mK.csv" ".outputs/" 96 0.2 1.0
+# py psd.py ".data/Ringdown_1325_600mK.csv" ".outputs/" 96 0.2 1.0
+
 # standard libraries
 from sys import argv, exit
 
@@ -447,22 +452,27 @@ if np_any(TIME[J]):
     fg.plot(TIME[J], PHAS[J], 'ko',
         markersize = 8, markerfacecolor = 'white')
 
-sgf_PHAS = savgol_filter(PHAS, 25, 1)
-fg.plot(TIME, sgf_PHAS, "--",
+sgf_PHAS1 = savgol_filter(PHAS, 5, 2)
+fg.plot(TIME, sgf_PHAS1, "--",
     linewidth = 1.5, color = fg.color["purple"])
 
 D.exportfigure(f"FIG_PHAS")
 
+fg = stdFigure(f"FIG_DPHAS", "Time", "S", "Phase", "Cycles")
+fg.plot(TIME[1:], diff(PHAS) / (TIME[1]-TIME[0]), fg.color["grey"])
+D.exportfigure(f"FIG_DPHAS")
+
 # compute the signal frequency from the reference
 # frequency and the phase derivative in Hz
 FREQ = REF_FREQ + diff(PHAS) / (TIME[1]-TIME[0])
-
-sgf_FREQ = REF_FREQ + diff(sgf_PHAS) / (TIME[1]-TIME[0])
+sgf_FREQ = savgol_filter(FREQ, 5, 2)
+sgf_FREQ1 = REF_FREQ + diff(sgf_PHAS1) / (TIME[1]-TIME[0])
 
 # plot phase in units of cycles: 1 cycle <=> 360 <=> 2 pi
 fg = stdFigure(f"FIG_FREQ", "Time", "S", "Frequency", "Hz")
-# fg.plot(TIME[1:], FREQ, color = fg.color["grey"])
+fg.plot(TIME[1:], FREQ, color = fg.color["grey"])
 fg.plot(TIME[1:], sgf_FREQ, "-", linewidth = 1.0, color = fg.color["purple"])
+fg.plot(TIME[1:], sgf_FREQ1, "-", linewidth = 1.0, color = fg.color["green"])
 
 D.exportfigure(f"FIG_FREQ")
 
