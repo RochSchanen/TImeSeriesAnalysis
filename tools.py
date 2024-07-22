@@ -180,12 +180,15 @@ def loadFrame(  framestart, # start of frame in S
 
 #####################################################################
 
+def linescan1
+
 # global variables for "loadBlock1"
 _DT, _FH, _LL, _NB  = [], None, "", 0
 
 def loadBlock1( FILEPATH = "",       # normally empty
                 BLOCK_SIZE  = 1<<20, # default is 1MB
                 HEADER_SIZE = 4,     # default is 4 lines
+
         ): # load one block from file
 
     # _DT is the data storage
