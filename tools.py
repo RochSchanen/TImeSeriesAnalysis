@@ -178,11 +178,6 @@ def loadFrame(  framestart, # start of frame in S
     _NF += 1
     return C0, C1
 
-
-
-
-#####################################################################
-
 def getFrameCount():
     return _NF
 
@@ -196,5 +191,3 @@ def getC1():
 
 def closeFile():
     _FH.close()
-
-#####################################################################
